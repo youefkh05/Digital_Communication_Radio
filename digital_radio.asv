@@ -1,0 +1,40 @@
+clc; 
+clear;
+close all;
+
+% Parameters
+A = 4;                  % Amplitude
+N_realizations = 1;     % Number of waveforms (ensemble size)
+num_bits = 100;         % Bits per waveform
+bit_duration = 70e-3;   % 70 ms per bit
+dac_interval = 10e-3;   % DAC updates every 10 ms
+samples_per_bit = bit_duration / dac_interval;  % 7 samples per bit
+total_time = num_bits * bit_duration;           % Total waveform duration
+t = 0:dac_interval:(total_time - dac_interval); % Time vector
+
+% Initialize arrays
+Unipolar_ensemble = zeros(N_realizations, length(t));
+PolarNRZ_ensemble = zeros(N_realizations, length(t));
+RZ_ensemble = zeros(N_realizations, length(t));
+
+
+for i = 1:N_realizations
+    % Generate a random bit sequence
+    Data = randi([0, 1], 1, num_bits);
+
+    % Unipolar NRZ: 0 → 0V, 1 → A
+    Unipolar = Data * A;
+    Unipolar_expanded = repmat(Unipolar, samples_per_bit, 1);
+    Unipolar_ensemble(i, :) = reshape(Unipolar_expanded, [], 1);
+
+    % Polar NRZ: 0 → -A, 1 → +A
+    PolarNRZ = ((2 * Data) - 1) * A;
+    PolarNRZ_expanded = repmat(PolarNRZ, samples_per_bit, 1);
+    PolarNRZ_ensemble(i, :) = reshape(PolarNRZ_expanded, [], 1);
+
+    % Return-to-Zero (RZ): 0 → 0V, 1 → A but returns to 0 in half-bit time
+    RZ = zeros(1, num_bits * 2);
+    RZ(1:2:end) = Data * A; % Set amplitude for first half of each bit period
+    RZ_expanded = repmat(RZ, samples_per_bit / 2, 1);
+    RZ_ensemble(i, :) = reshape(RZ_expanded, [], 1);
+end
