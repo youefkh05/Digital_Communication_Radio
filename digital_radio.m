@@ -17,7 +17,6 @@ Data = randi([0, 1], 1, num_bits, 'int8');
 
 [Unipolar, PolarNRZ, PolarRZ] = generate_linecodes(Data, A, samples_per_bit);
 
-
 plot_linecodes(Data, Unipolar, PolarNRZ, PolarRZ, t, 6);
 
 %-----------------------Functions----------------------------
@@ -33,11 +32,17 @@ function [Unipolar, PolarNRZ, PolarRZ] = generate_linecodes(Data, A, samples_per
     % Polar NRZ: 0 → -A, 1 → +A
     PolarNRZ = int8((2 * Data - 1) * A);
     PolarNRZ = repelem(PolarNRZ, samples_per_bit);
-    
-    % Return-to-Zero (RZ): 0 → 0V, 1 → A (returns to 0 in half-bit time)
-    PolarRZ = int8(zeros(1, length(Data) * 2)); % Preallocate RZ sequence
-    PolarRZ(1:2:end) = Data * A; % Assign amplitude only for first half of bit period
-    PolarRZ = repelem(PolarRZ, samples_per_bit / 2);
+    samples_per_bitd= double(samples_per_bit);
+    % Polar Return-to-Zero (RZ): Same as Polar NRZ but second half set to 0
+    PolarRZ = PolarNRZ;
+   
+    i = length(Data);  % Start from the last bit
+    while i > 0
+        end_idx = i * samples_per_bitd;  % Last sample of the bit
+        start_idx = end_idx - double(floor(samples_per_bit / 2)) + 1;  % Start of the second half
+        PolarRZ(start_idx:end_idx) = 0;  % Set the second half of the bit period to zero
+        i = i - 1;  % Move to the previous bit
+    end
 end
 
 
