@@ -31,9 +31,7 @@ for i = 1:N_realizations
     
     % Plot the first realization
     if i==1
-        figure;
-        plot_linecodes(Data, Unipolar, PolarNRZ, PolarRZ, t, num_bits);
-        sgtitle(['Realization ' num2str(i)]); % Set a title for the figure
+        plot_linecodes(Data, Unipolar, PolarNRZ, PolarRZ, t, num_bits-1,'Realization 1');       
     end
 end
 
@@ -51,6 +49,20 @@ xlabel('Time (s)');
 
 % Apply random shift to all realizations
 [Unipolar_Shifted, PolarNRZ_Shifted, PolarRZ_Shifted] = apply_random_shift_fixed_size(Unipolar_All, PolarNRZ_All, PolarRZ_All, samples_per_bit);
+
+t_shifted = t(1:length(Unipolar_Shifted)); % Ensure the time vector matches
+
+disp(Unipolar_Shifted(1, 1:10)); % Display the first 10 samples
+disp(PolarNRZ_Shifted(1, 1:10));
+disp(PolarRZ_Shifted(1, 1:10));
+
+size(Unipolar_Shifted)
+size(t)
+size(t_shifted)
+
+
+%plot after shift
+plot_linecodes(Data, Unipolar_Shifted, PolarNRZ_Shifted, PolarRZ_Shifted, t_shifted, num_bits-1, 'Realization 1 shifted');
 
 
 %-----------------------Functions----------------------------
@@ -84,16 +96,16 @@ function [Unipolar, PolarNRZ, PolarRZ] = generate_linecodes(Data, A, samples_per
 end
 
 
-function plot_linecodes(Data, Unipolar, PolarNRZ, PolarRZ, t, num_bits_to_show)
+function plot_linecodes(Data, Unipolar, PolarNRZ, PolarRZ, t, num_bits_to_show, plot_title)
     % Ensure num_bits_to_show does not exceed the actual number of bits
-    num_samples_per_bit = length(t) / length(Data);
+    num_samples_per_bit = ceil(length(t) / length(Data));
     num_samples_to_show = num_bits_to_show * num_samples_per_bit;
 
     % Trim the signals to display only the required number of bits
     t_show = t(1:num_samples_to_show);
-    Unipolar_show = Unipolar(1:num_samples_to_show);
-    PolarNRZ_show = PolarNRZ(1:num_samples_to_show);
-    PolarRZ_show = PolarRZ(1:num_samples_to_show);
+    Unipolar_show = Unipolar(1, 1:num_samples_to_show); % Select row 1 explicitly
+    PolarNRZ_show = PolarNRZ(1, 1:num_samples_to_show);
+    PolarRZ_show = PolarRZ(1, 1:num_samples_to_show);
 
     % Convert Data into a sample-wise representation for accurate plotting
     Data_show = repelem(Data(1:num_bits_to_show), num_samples_per_bit);
@@ -101,6 +113,8 @@ function plot_linecodes(Data, Unipolar, PolarNRZ, PolarRZ, t, num_bits_to_show)
 
     % Plot the signals
     figure;
+    sgtitle(plot_title); % Set a title for the entire figure
+    
     subplot(4,1,1);
     stairs(Data_t, Data_show, 'k', 'LineWidth', 2);
     title('Orignal Data');
