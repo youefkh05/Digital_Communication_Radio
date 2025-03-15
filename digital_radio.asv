@@ -75,9 +75,9 @@ PolarNRZ_Var = calculate_variance(PolarNRZ_Shifted);
 PolarRZ_Var = calculate_variance(PolarRZ_Shifted);
 
 %plot the vatiance across time
-plot_variance(t_shifted, Unipolar_Var, PolarNRZ_Var, PolarRZ_Var);
+plot_variance(t, Unipolar_Var, PolarNRZ_Var, PolarRZ_Var);
 
-max_lag = length(t_shifted)/10; % Define the maximum lag
+max_lag = 20; % Define the maximum lag
 
 % Compute autocorrelation using our function
 Unipolar_AutoCorr = calculate_autocorr(Unipolar_Shifted, max_lag);
@@ -117,6 +117,7 @@ function [Unipolar, PolarNRZ, PolarRZ] = generate_linecodes(Data, A, samples_per
         i = i - 1;  % Move to the previous bit
     end
 end
+
 
 function plot_linecodes(Data, Unipolar, PolarNRZ, PolarRZ, t, num_bits_to_show, plot_title)
     % Ensure num_bits_to_show does not exceed the actual number of bits
