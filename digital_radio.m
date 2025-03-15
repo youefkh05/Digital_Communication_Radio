@@ -68,7 +68,6 @@ PolarRZ_Mean = calculate_mean(PolarRZ_Shifted);
 %plot the mean across time
 plot_mean_waveforms(t_shifted, Unipolar_Mean, PolarNRZ_Mean, PolarRZ_Mean)
 
-
 % Compute variance for each code line
 Unipolar_Var = calculate_variance(Unipolar_Shifted);
 PolarNRZ_Var = calculate_variance(PolarNRZ_Shifted);
@@ -77,7 +76,7 @@ PolarRZ_Var = calculate_variance(PolarRZ_Shifted);
 %plot the vatiance across time
 plot_variance(t_shifted, Unipolar_Var, PolarNRZ_Var, PolarRZ_Var);
 
-max_lag = length(t_shifted)/10; % Define the maximum lag
+max_lag = length(t_shifted)/14 +10; % Define the maximum lag
 
 % Compute autocorrelation using our function
 Unipolar_AutoCorr = calculate_autocorr(Unipolar_Shifted, max_lag);
@@ -280,77 +279,55 @@ function plot_variance(t, Unipolar_Var, PolarNRZ_Var, PolarRZ_Var)
     sgtitle('Variance of Different Line Codes');
 end
 
-function autocorr_waveform = calculate_autocorr(waveform_matrix, max_lag)
-    % Computes the ensemble autocorrelation function R_x(τ)
-    % waveform_matrix: Each row is a realization of the process
-    % max_lag: Maximum lag for autocorrelation calculation
+function AutoCorr = calculate_autocorr(signal, max_lag)
+    % Computes the autocorrelation of a signal with a given max_lag
+    % signal: Input waveform (1D array)
+    % max_lag: Maximum lag value
+    % Returns:
+    % AutoCorr: Autocorrelation values for lags -max_lag to max_lag
     
-    [num_realizations, num_samples] = size(waveform_matrix);
+    signal = signal(:); % Ensure it's a column vector
+    N = length(signal); % Get signal length
     
-    % Compute mean and variance across realizations (column-wise)
-    mean_waveform = calculate_mean(waveform_matrix); % 1 × num_samples
-    variance_waveform = calculate_variance(waveform_matrix); % 1 × num_samples
+    AutoCorr = zeros(2 * max_lag + 1, 1); % Initialize autocorrelation output
     
-    % Add small epsilon to avoid division by zero
-    epsilon = 1e-10;
-    
-    % Initialize autocorrelation matrix
-    autocorr_waveform = zeros(max_lag + 1, num_samples);
-    
-    % Compute autocorrelation for each lag τ
-    for tau = 0:max_lag
-        shifted_waveform = zeros(size(waveform_matrix)); % Initialize shifted matrix
-        
-        % Shift each row by τ (padding zeros for missing values)
-        if tau > 0
-            shifted_waveform(:, 1:end-tau) = waveform_matrix(:, tau+1:end);
+    for lag = -max_lag:max_lag
+        if lag < 0
+            AutoCorr(lag + max_lag + 1) = sum(signal(1:N+lag) .* signal(-lag+1:N)) / N;
         else
-            shifted_waveform = waveform_matrix; % No shift for τ = 0
+            AutoCorr(lag + max_lag + 1) = sum(signal(1:N-lag) .* signal(lag+1:N)) / N;
         end
-        
-        % Compute autocorrelation using the formula
-        numerator = sum((waveform_matrix - mean_waveform) .* (shifted_waveform - mean_waveform), 1);
-        denominator = num_realizations * (variance_waveform + epsilon); % Avoid division by zero
-        
-        % Normalize by variance to get the autocorrelation coefficient
-        autocorr_waveform(tau + 1, :) = numerator ./ denominator;
     end
 end
 
 function plot_autocorrelation(Unipolar_AutoCorr, PolarNRZ_AutoCorr, PolarRZ_AutoCorr, max_lag)
-    % Plots the autocorrelation of different line codes
-    % Unipolar_AutoCorr, PolarNRZ_AutoCorr, PolarRZ_AutoCorr: Autocorrelation matrices
-    % max_lag: Maximum lag value used in autocorrelation computation
-    
-    % Create a figure for plotting
+    lag_range = -max_lag:max_lag; % Define the x-axis range
+
     figure;
     
-    % Plot Unipolar NRZ Autocorrelation
     subplot(3,1,1);
-    plot(0:max_lag, Unipolar_AutoCorr(:, round(end/2)), 'r', 'LineWidth', 2);
+    plot(lag_range, Unipolar_AutoCorr, 'r', 'LineWidth', 2);
     xlabel('Lag (\tau)');
     ylabel('Autocorr');
     title('Autocorrelation of Unipolar NRZ');
     grid on;
     
-    % Plot Polar NRZ Autocorrelation
     subplot(3,1,2);
-    plot(0:max_lag, PolarNRZ_AutoCorr(:, round(end/2)), 'g', 'LineWidth', 2);
+    plot(lag_range, PolarNRZ_AutoCorr, 'g', 'LineWidth', 2);
     xlabel('Lag (\tau)');
     ylabel('Autocorr');
     title('Autocorrelation of Polar NRZ');
     grid on;
     
-    % Plot Polar RZ Autocorrelation
     subplot(3,1,3);
-    plot(0:max_lag, PolarRZ_AutoCorr(:, round(end/2)), 'b', 'LineWidth', 2);
+    plot(lag_range, PolarRZ_AutoCorr, 'b', 'LineWidth', 2);
     xlabel('Lag (\tau)');
     ylabel('Autocorr');
     title('Autocorrelation of Polar RZ');
     grid on;
     
-    % Adjust layout
     sgtitle('Autocorrelation of Different Line Codes');
 end
+
 
 
