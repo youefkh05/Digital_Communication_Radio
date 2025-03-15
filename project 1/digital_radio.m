@@ -85,6 +85,36 @@ max_lag = size(Unipolar_Shifted, 2) - 1;
 %plot the autocorrelation
 plot_autocorrelation(Unipolar_AutoCorr, PolarNRZ_AutoCorr, PolarRZ_AutoCorr, max_lag)
 
+% Compute time autocorrelation
+[R_unipolar_nrz_t, R_polar_nrz_t, R_polar_rz_t, taw2] = compute_time_autocorr(Unipolar_Shifted, PolarNRZ_Shifted, PolarRZ_Shifted);
+
+% Plot the time autocorrelation
+plot_time_autocorrelation(R_unipolar_nrz_t, R_polar_nrz_t, R_polar_rz_t, taw2);
+
+% Compute time mean for each line code
+Unipolar_TimeMean = compute_time_mean(Unipolar_Shifted);
+PolarNRZ_TimeMean = compute_time_mean(PolarNRZ_Shifted);
+PolarRZ_TimeMean = compute_time_mean(PolarRZ_Shifted);
+
+% Plot the time mean
+plot_time_mean(t_shifted, Unipolar_TimeMean, PolarNRZ_TimeMean, PolarRZ_TimeMean);
+
+% Compute time mean for all realizations
+Unipolar_TimeMean_All = arrayfun(@estimate_time_mean, Unipolar_Shifted, 'UniformOutput', true);
+PolarNRZ_TimeMean_All = arrayfun(@estimate_time_mean, PolarNRZ_Shifted, 'UniformOutput', true);
+PolarRZ_TimeMean_All = arrayfun(@estimate_time_mean, PolarRZ_Shifted, 'UniformOutput', true);
+
+% Compute the final estimated time mean (average over all realizations)
+Final_Unipolar_TimeMean = mean(Unipolar_TimeMean_All);
+Final_PolarNRZ_TimeMean = mean(PolarNRZ_TimeMean_All);
+Final_PolarRZ_TimeMean = mean(PolarRZ_TimeMean_All);
+
+% Display results
+disp(['Estimated Unipolar NRZ Time Mean: ', num2str(Final_Unipolar_TimeMean)]);
+disp(['Estimated Polar NRZ Time Mean: ', num2str(Final_PolarNRZ_TimeMean)]);
+disp(['Estimated Polar RZ Time Mean: ', num2str(Final_PolarRZ_TimeMean)]);
+
+
 
 %-----------------------Functions----------------------------
 
@@ -357,6 +387,138 @@ function plot_autocorrelation(Unipolar_AutoCorr, PolarNRZ_AutoCorr, PolarRZ_Auto
     xlabel("Time axis");
     ylabel("Autocorr axis");
     title("Polar RZ Statistical Autocorrelation");
+end
+function [R_unipolar_nrz_t, R_polar_nrz_t, R_polar_rz_t, taw2] = compute_time_autocorr(UnipolarNRZ, PolarNRZ, PolarRZ)
+    % Computes time autocorrelation for Unipolar NRZ, Polar NRZ, and Polar RZ waveforms
+    % Inputs:
+    %   UnipolarNRZ - Matrix containing all realizations for Unipolar NRZ
+    %   PolarNRZ - Matrix containing all realizations for Polar NRZ
+    %   PolarRZ - Matrix containing all realizations for Polar RZ
+    % Outputs:
+    %   R_unipolar_nrz_t - Time autocorrelation for Unipolar NRZ
+    %   R_polar_nrz_t - Time autocorrelation for Polar NRZ
+    %   R_polar_rz_t - Time autocorrelation for Polar RZ
+    %   taw2 - Lag values
+
+    % Get number of realizations and samples
+    [num_realizations, num_samples] = size(UnipolarNRZ);
+
+    % Define range of time lags
+    max_lag = floor(num_samples / 2); % 150 in your case
+    taw2 = -max_lag:max_lag;
+
+    % Initialize autocorrelation vectors
+    R_unipolar_nrz_t = zeros(1, length(taw2));     
+    R_polar_nrz_t = zeros(1, length(taw2));     
+    R_polar_rz_t = zeros(1, length(taw2));     
+
+    % Loop through lag values
+    for i = taw2
+        M = i + max_lag + 1; % Shift index to fit within array bounds
+
+        % Initialize sum for each lag
+        sum_unipolar = 0;
+        sum_polar_nrz = 0;
+        sum_polar_rz = 0;
+
+        % Compute sum over all realizations
+        for n1 = max_lag + 1:num_samples
+            if (n1 + i > 0) && (n1 + i <= num_samples) % Avoid out-of-bounds indexing
+                sum_unipolar = sum_unipolar + mean(UnipolarNRZ(:, n1) .* UnipolarNRZ(:, n1 + i));
+                sum_polar_nrz = sum_polar_nrz + mean(PolarNRZ(:, n1) .* PolarNRZ(:, n1 + i));
+                sum_polar_rz = sum_polar_rz + mean(PolarRZ(:, n1) .* PolarRZ(:, n1 + i));
+            end
+        end
+
+        % Normalize autocorrelation
+        valid_samples = num_samples - abs(i);
+        R_unipolar_nrz_t(M) = sum_unipolar / valid_samples;
+        R_polar_nrz_t(M) = sum_polar_nrz / valid_samples;
+        R_polar_rz_t(M) = sum_polar_rz / valid_samples;
+    end
+end
+function plot_time_autocorrelation(R_unipolar, R_polarNRZ, R_polarRZ, taw2)
+    figure('Name', 'Time Autocorrelation');
+
+    subplot(3,1,1);
+    plot(taw2, R_unipolar, 'b', 'LineWidth', 1.5);
+    grid on;
+    axis([-25 25 -4 20]);
+    xlabel('Time (samples)');
+    ylabel('Magnitude');
+    title('Time Autocorrelation of Unipolar NRZ');
+
+    subplot(3,1,2);
+    plot(taw2, R_polarNRZ, 'r', 'LineWidth', 1.5);
+    grid on;
+    axis([-25 25 -4 20]);
+    xlabel('Time (samples)');
+    ylabel('Magnitude');
+    title('Time Autocorrelation of Polar NRZ');
+
+    subplot(3,1,3);
+    plot(taw2, R_polarRZ, 'g', 'LineWidth', 1.5);
+    grid on;
+    axis([-25 25 -4 20]);
+    xlabel('Time (samples)');
+    ylabel('Magnitude');
+    title('Time Autocorrelation of Polar RZ');
+end
+
+function TimeMean = compute_time_mean(waveform_matrix)
+    % Computes the time mean for all realizations of a given waveform
+    % Inputs:
+    %   waveform_matrix - Matrix where each row represents a realization
+    % Output:
+    %   TimeMean - The computed time mean across all realizations
+
+    % Get the number of realizations and samples
+    [num_realizations, num_samples] = size(waveform_matrix);
+
+    % Compute time mean (mean along columns)
+    TimeMean = sum(waveform_matrix, 1) / num_realizations;
+end
+function plot_time_mean(t, Unipolar_Mean, PolarNRZ_Mean, PolarRZ_Mean)
+    % Plots the time mean of different line codes over time
+    % Inputs:
+    %   t - Time vector
+    %   Unipolar_Mean - Time mean of Unipolar NRZ
+    %   PolarNRZ_Mean - Time mean of Polar NRZ
+    %   PolarRZ_Mean - Time mean of Polar RZ
+
+    figure('Name', 'Time Mean of Different Line Codes');
+
+    subplot(3,1,1);
+    plot(t, Unipolar_Mean, 'r', 'LineWidth', 2);
+    xlabel('Time (s)');
+    ylabel('Amplitude');
+    title('Time Mean of Unipolar NRZ');
+    grid on;
+
+    subplot(3,1,2);
+    plot(t, PolarNRZ_Mean, 'g', 'LineWidth', 2);
+    xlabel('Time (s)');
+    ylabel('Amplitude');
+    title('Time Mean of Polar NRZ');
+    grid on;
+
+    subplot(3,1,3);
+    plot(t, PolarRZ_Mean, 'b', 'LineWidth', 2);
+    xlabel('Time (s)');
+    ylabel('Amplitude');
+    title('Time Mean of Polar RZ');
+    grid on;
+end
+
+function TimeMean = estimate_time_mean(signal)
+    % Estimates the time mean of a single waveform realization.
+    % Input:
+    %   signal - A single realization of the waveform (1D array)
+    % Output:
+    %   TimeMean - The estimated time mean of the waveform
+
+    % Compute time mean as the average over all time samples
+    TimeMean = sum(signal) / length(signal);
 end
 
 
