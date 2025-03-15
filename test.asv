@@ -1,0 +1,337 @@
+ %% Data Generation
+2) A = 4; % amplitude of line code
+3) rows_num = 500; % no of realizations
+4) real_length = 100; % length of realization (in bits)
+5) samples_num = 7; % no of samples per bit
+6) samples_per_real = samples_num * real_length; % no of
+samples per realization (700 sample)
+7) fs = 100; % sampling frequency
+8) Data = randi([0,1], rows_num, real_length+1);
+9) %% generation of polar_NRZ realizations
+10) polar_NRZ_amplitude = (2*Data-1)*A;
+11) polar_NRZ_reals =
+repelem(polar_NRZ_amplitude,1,samples_num);
+12) %% generation of uni_polar_NRZ realizations
+13) uni_polar_NRZ_amplitude = (Data)*A;
+14) uni_polar_NRZ_reals =
+repelem(uni_polar_NRZ_amplitude,1,samples_num);
+15) %% generation of polar_RZ realizations
+16) polar_RZ_reals = polar_NRZ_reals;
+17) for i=1: 1: 500
+18) for j=5: 7: 705
+polar_RZ_reals(i, j:j+2) = 0;
+19) end
+20) end
+21) %% ranodom initial time shift
+22) start_indices = randi([0, 6], rows_num, 1);
+23) Rndm_shift_polar_NRZ = zeros(rows_num,
+samples_per_real);
+24) Rndm_shift_uni_polar_NRZ = zeros(rows_num,
+samples_per_real);
+25) Rndm_shift_polar_RZ = zeros(rows_num,
+samples_per_real);
+26) %% generation of random initial time shift
+versions of line codes
+27) for i = 1:rows_numFALL 2024 ELC 3070
+Digital Communications 14
+28) start_index = start_indices(i);
+29) end_index = (samples_per_real) + start_index ;
+30) Rndm_shift_polar_NRZ(i, :) = polar_NRZ_reals(i,
+start_index+1:end_index);
+31) Rndm_shift_uni_polar_NRZ(i, :) =
+uni_polar_NRZ_reals(i, start_index+1:end_index);
+32) Rndm_shift_polar_RZ(i, :) = polar_RZ_reals(i,
+start_index+1:end_index);
+33) end
+34) %% Diplay the final line codes
+35) figure("name", "LIne Codes");
+36) % uni polar NRZ
+37) subplot(3,1,1);
+38) stairs(Rndm_shift_uni_polar_NRZ(1, :),'g');
+39) axis([0 700 -(A+1) (A+1)]);
+40) xlabel("Time axis");
+41) ylabel("Amplitude axis");
+42) title("uni polar NRZ");
+43) % polar NRZ
+44) subplot(3,1,2);
+45) stairs(Rndm_shift_polar_NRZ(1, :),'b');
+46) axis([0 700 -(A+1) (A+1)]);
+47) xlabel("Time axis");
+48) ylabel("Amplitude axis");
+49) title("polar NRZ");
+50) % polar RZ
+51) subplot(3,1,3);
+52) stairs(Rndm_shift_polar_RZ(1, :),'r');
+53) axis([0 700 -(A+1) (A+1)]);
+54) xlabel("Time axis");
+55) ylabel("Amplitude axis");
+56) title("polar RZ");
+57) %% Question (1) >> Statistical or ensemble mean
+58) Col_Sum_pol_NRZ = zeros(1, samples_per_real);
+%initialization of sum matrix
+59) Col_Sum_uni_pol_NRZ = zeros(1, samples_per_real);
+%initialization of sum matrixFALL 2024 ELC 3070
+Digital Communications 15
+60) Col_Sum_pol_RZ = zeros(1, samples_per_real);
+%initialization of sum matrix
+61) for k = 1 : samples_per_real
+62) for j = 1 : rows_num
+Col_Sum_pol_NRZ(k) = Col_Sum_pol_NRZ(k) +
+Rndm_shift_polar_NRZ(j, k);
+Col_Sum_uni_pol_NRZ(k) =
+Col_Sum_uni_pol_NRZ(k) +
+Rndm_shift_uni_polar_NRZ(j, k);
+Col_Sum_pol_RZ(k) = Col_Sum_pol_RZ(k) +
+Rndm_shift_polar_RZ(j, k);
+63) end
+64) end
+65) %Averaging the vector values over the no of
+realizations
+66) pol_NRZ_Stat_mean = Col_Sum_pol_NRZ.*(1/rows_num);
+67) uni_pol_NRZ_Stat_mean =
+Col_Sum_uni_pol_NRZ.*(1/rows_num);
+68) pol_RZ_Stat_mean = Col_Sum_pol_RZ.*(1/rows_num);
+69) % plotting the Statistical mean
+70) t = 1 : samples_per_real; % samples_per_real =
+7*100 = 700
+71) figure("name", "Statistical mean plot");
+72) % stat_mean of uni polar NRZ
+73) subplot(3,1,1);
+74) plot(t, uni_pol_NRZ_Stat_mean,'g');
+75) axis([0 700 -(A+1) (A+1)]); % x-axis = 0:700 & yaxis = -5:5
+76) xlabel("Time axis");
+77) ylabel("Mean axis");
+78) title("uni polar NRZ mean");
+79) % stat_mean of polar NRZ
+80) subplot(3,1,2);
+81) plot(t, pol_NRZ_Stat_mean,'b');
+82) axis([0 700 -(A+1) (A+1)]); % x-axis = 0:700 & yaxis = -5:5
+83) xlabel("Time axis");
+84) ylabel("Mean axis");
+85) title("polar NRZ mean");FALL 2024 ELC 3070
+Digital Communications 16
+86) % stat_mean of polar RZ
+87) subplot(3,1,3);
+88) plot(t, pol_RZ_Stat_mean,'r');
+89) axis([0 700 -(A+1) (A+1)]); % x-axis = 0:700 & yaxis = -5:5
+90) xlabel("Time axis");
+91) ylabel("Mean axis");
+92) title("polar RZ mean");
+93) %% Question (2) >> Statistical Autocorrelation
+94) averages_pol_NRZ = zeros(1, 700);
+95) averages_uni_pol_NRZ = zeros(1, 700);
+96) averages_pol_RZ = zeros(1, 700);
+97) for i = 0:699
+98) result_column_pol_NRZ = Rndm_shift_polar_NRZ(:, 1)
+.* Rndm_shift_polar_NRZ(:, i+1);
+99) averages_pol_NRZ(i+1) =
+mean(result_column_pol_NRZ);
+100) end
+101) for i = 0:699
+102) result_column_uni_pol_NRZ =
+Rndm_shift_uni_polar_NRZ(:, 1) .*
+Rndm_shift_uni_polar_NRZ(:, i+1);
+103) averages_uni_pol_NRZ(i+1) =
+mean(result_column_uni_pol_NRZ);
+104) end
+105) for i = 0:699
+106) result_column_pol_RZ = Rndm_shift_polar_RZ(:, 1)
+.* Rndm_shift_polar_RZ(:, i+1);
+107) averages_pol_RZ(i+1) = mean(result_column_pol_RZ);
+108) end
+109) t = -699 : 699;
+110) figure("name", " Statistical Autocorrelation");
+111) % stat_autocorr of uni polar NRZ
+112) stat_autocorr_uni_pol_NRZ =
+fliplr(averages_uni_pol_NRZ);
+113) averages_combined_uni_pol_NRZ =
+[stat_autocorr_uni_pol_NRZ,
+averages_uni_pol_NRZ(2:700)];FALL 2024 ELC 3070
+Digital Communications 17
+114) subplot(3,1,1);
+115) plot(t, averages_combined_uni_pol_NRZ,'g');
+116) xlim([-50 50]);
+117) xlabel("Time axis");
+118) ylabel("Autocorr axis");
+119) title("uni polar NRZ Stat Autocorr");
+120) % time_autocorr of polar NRZ
+121) stat_autocorr_pol_NRZ = fliplr(averages_pol_NRZ);
+122) averages_combined_pol_NRZ =
+[stat_autocorr_pol_NRZ, averages_pol_NRZ(2:700)];
+123) subplot(3,1,2);
+124) plot(t, averages_combined_pol_NRZ,'b');
+125) xlim([-50 50]);
+126) xlabel("Time axis");
+127) ylabel("Autocorr axis");
+128) title("polar NRZ Stat Autocorr");
+129) % time_autocorr of polar RZ
+130) stat_autocorr_pol_RZ = fliplr(averages_pol_RZ);
+131) averages_combined_pol_RZ = [stat_autocorr_pol_RZ,
+averages_pol_RZ(2:700)];
+132) subplot(3,1,3);
+133) plot(t, averages_combined_pol_RZ,'r');
+134) xlim([-50 50]);
+135) xlabel("Time axis");
+136) ylabel("Autocorr axis");
+137) title("polar RZ Stat Autocorr");
+138) %% Question (4) >> average time mean
+139) % initilize mean vectors
+140) polar_NRZ_time_mean = zeros(500, 1);
+141) uni_polar_NRZ_time_mean = zeros(500, 1);
+142) polar_RZ_time_mean = zeros(500, 1);
+143) for i = 1: 700
+polar_NRZ_time_mean = polar_NRZ_time_mean +
+Rndm_shift_polar_NRZ (: , i);
+uni_polar_NRZ_time_mean = uni_polar_NRZ_time_mean
++ Rndm_shift_uni_polar_NRZ (: , i);
+polar_RZ_time_mean = polar_RZ_time_mean +
+Rndm_shift_polar_RZ (: , i);
+144) endFALL 2024 ELC 3070
+Digital Communications 18
+145) %Averaging the vector values over the time
+146) polar_NRZ_time_mean = polar_NRZ_time_mean /700;
+147) uni_polar_NRZ_time_mean = uni_polar_NRZ_time_mean
+/700;
+148) polar_RZ_time_mean = polar_RZ_time_mean /700;
+149) t = 1 : 500;
+150) figure("name", " average time mean plot");
+151) % time_mean of uni polar NRZ
+152) subplot(3,1,1);
+153) plot(t,uni_polar_NRZ_time_mean,'g');
+154) axis([0 500 -(A+1) (A+1)]); % x-axis = 0:700 & yaxis = -5:5
+155) xlabel("Time axis");
+156) ylabel("average time mean axis");
+157) title("uni polar NRZ time mean");
+158) % time_mean of polar NRZ
+159) subplot(3,1,2);
+160) plot(t,polar_NRZ_time_mean,'b');
+161) axis([0 500 -(A+1) (A+1)]); % x-axis = 0:700 & yaxis = -5:5
+162) xlabel("Time axis");
+163) ylabel("average time mean axis");
+164) title("polar NRZ time mean");
+165) % time_mean of polar RZ
+166) subplot(3,1,3);
+167) plot(t,polar_RZ_time_mean,'r');
+168) axis([0 500 -(A+1) (A+1)]); % x-axis = 0:700 & yaxis = -5:5
+169) xlabel("Time axis");
+170) ylabel("average time mean axis");
+171) title("polar RZ time mean");
+172) %% average time Autocorrelation
+173) % initilize autocorrelation vectors
+174) polar_NRZ_time_autocorr = zeros(1,700);
+175) uni_polar_NRZ_time_autocorr = zeros(1,700);
+176) polar_RZ_time_autocorr = zeros(1,700);
+177) for i = 0 : 699FALL 2024 ELC 3070
+Digital Communications 19
+178) polar_NRZ_time_autocorr(i+1) =
+sum(Rndm_shift_polar_NRZ(1,:) .*
+circshift(Rndm_shift_polar_NRZ(1,:), i));
+179) uni_polar_NRZ_time_autocorr(i+1) =
+sum(Rndm_shift_uni_polar_NRZ(1,:) .*
+circshift(Rndm_shift_uni_polar_NRZ(1,:), i));
+180) polar_RZ_time_autocorr(i+1) =
+sum(Rndm_shift_polar_RZ(1,:) .*
+circshift(Rndm_shift_polar_RZ(1,:), i));
+181) end
+182) % Normalize the autocorrelation function
+183) polar_NRZ_time_autocorr =
+polar_NRZ_time_autocorr./700;
+184) uni_polar_NRZ_time_autocorr =
+uni_polar_NRZ_time_autocorr./700;
+185) polar_RZ_time_autocorr =
+polar_RZ_time_autocorr./700;
+186) % repeating the array in the negateive half to
+produce an even Autocorrelation functtion
+187) polar_NRZ_time_autocorr =
+[fliplr(polar_NRZ_time_autocorr)
+polar_NRZ_time_autocorr(2:end)];
+188) uni_polar_NRZ_time_autocorr =
+[fliplr(uni_polar_NRZ_time_autocorr)
+uni_polar_NRZ_time_autocorr(2:end)];
+189) polar_RZ_time_autocorr =
+[fliplr(polar_RZ_time_autocorr)
+polar_RZ_time_autocorr(2:end)];
+190) t = -699:699;
+191) figure("name", " Average time Autocorrelation");
+192) % time_autocorr of uni polar NRZ
+193) subplot(3,1,1);
+194) plot(t,uni_polar_NRZ_time_autocorr,'g');
+195) axis([-50 50 -5 15]);
+196) xlabel("Time axis");
+197) ylabel("average time Autocorr axis");
+198) title("uni polar NRZ time Autocorr ");
+199) % time_autocorr of polar NRZFALL 2024 ELC 3070
+Digital Communications 20
+200) subplot(3,1,2);
+201) plot(t,polar_NRZ_time_autocorr,'b');
+202) axis([-50 50 -5 15]);
+203) xlabel("Time axis");
+204) ylabel("average time Autocorr axis");
+205) title("polar NRZ time Autocorr ");
+206) % time_autocorr of polar RZ
+207) subplot(3,1,3);
+208) plot(t,polar_RZ_time_autocorr,'r');
+209) axis([-50 50 -5 15]);
+210) xlabel("Time axis");
+211) ylabel("average time Autocorr axis");
+212) title("polar RZ time Autocorr ");
+213) %% Question (6) >> PSD of the ensemble & BW of TX
+signal
+214) % PSD calculation of uni polar NRZ
+215) fft_autocorr_uni_pol_NRZ =
+fft(averages_combined_uni_pol_NRZ); % PSD is the
+fourier Transform of statistical Autocorrelation
+216) fft_autocorr_shifted_uni_pol_NRZ =
+fftshift(fft_autocorr_uni_pol_NRZ); % to centralize the
+graph around zero
+217) N1 = length(fft_autocorr_shifted_uni_pol_NRZ);
+218) fs = 100;
+219) frequencies1 = linspace(-fs/2, fs/2, N1); % N1
+points between -50 & 50
+220) %plotting the PSD
+221) figure("name", "PSD Plot")
+222) subplot(3,1,1);
+223) plot(frequencies1,
+abs(fft_autocorr_shifted_uni_pol_NRZ)/fs,'g'); % take
+the absolute value of fourier Transform
+224) xlabel("Frequency axis");
+225) ylabel("PSD axis");
+226) ylim([0 2]);
+227) title("uni polar NRZ PSD");FALL 2024 ELC 3070
+Digital Communications 21
+228) % PSD calculation of polar NRZ
+229) fft_autocorr_pol_NRZ =
+fft(averages_combined_pol_NRZ); % PSD is the fourier
+Transform of statistical Autocorrelation
+230) fft_autocorr_shifted_pol_NRZ =
+fftshift(fft_autocorr_pol_NRZ); % to centralize the
+graph around zero
+231) N2 = length(fft_autocorr_shifted_pol_NRZ);
+232) fs = 100;
+233) frequencies2 = linspace(-fs/2, fs/2, N2); % N1
+points between -50 & 50
+234) subplot(3,1,2);
+235) plot(frequencies2,
+abs(fft_autocorr_shifted_pol_NRZ)/fs,'b'); % take the
+absolute value of fourier Transform
+236) xlabel("Frequency axis");
+237) ylabel("PSD axis");
+238) title("polar NRZ PSD");
+239) % PSD calculation of polar RZ
+240) fft_autocorr_pol_RZ =
+fft(averages_combined_pol_RZ); % PSD is the fourier
+Transform of statistical Autocorrelation
+241) fft_autocorr_shifted_pol_RZ =
+fftshift(fft_autocorr_pol_RZ); % to centralize the
+graph around zero
+242) N3 = length(fft_autocorr_shifted_pol_RZ);
+243) fs = 100;
+244) frequencies3 = linspace(-fs/2, fs/2, N3); % N1
+points between -50 & 50
+245) subplot(3,1,3);
+246) plot(frequencies3,
+abs(fft_autocorr_shifted_pol_RZ)/fs,'r'); % take the
+absolute value of fourier Transform
+247) xlabel("Frequency axis");
+248) ylabel("PSD axis");
+249) title("polar RZ PSD");
