@@ -52,17 +52,111 @@ xlabel('Time (s)');
 
 t_shifted = t(1:length(Unipolar_Shifted)); % Ensure the time vector matches
 
-disp(Unipolar_Shifted(1, 1:10)); % Display the first 10 samples
-disp(PolarNRZ_Shifted(1, 1:10));
-disp(PolarRZ_Shifted(1, 1:10));
-
-size(Unipolar_Shifted)
-size(t)
-size(t_shifted)
-
-
 %plot after shift
 plot_linecodes(Data, Unipolar_Shifted, PolarNRZ_Shifted, PolarRZ_Shifted, t_shifted, num_bits-1, 'Realization 1 shifted');
+
+% Compute mean waveforms
+Unipolar_Mean = calculate_mean(Unipolar_All);
+PolarNRZ_Mean = calculate_mean(PolarNRZ_All);
+PolarRZ_Mean = calculate_mean(PolarRZ_All);
+
+figure;
+
+subplot(3,1,1);
+plot(t, Unipolar_Mean, 'r', 'LineWidth', 2);
+xlabel('Time (s)');
+ylabel('Amplitude');
+title('Mean of Unipolar NRZ');
+grid on;
+
+subplot(3,1,2);
+plot(t, PolarNRZ_Mean, 'g', 'LineWidth', 2);
+xlabel('Time (s)');
+ylabel('Amplitude');
+title('Mean of Polar NRZ');
+grid on;
+
+subplot(3,1,3);
+plot(t, PolarRZ_Mean, 'b', 'LineWidth', 2);
+xlabel('Time (s)');
+ylabel('Amplitude');
+title('Mean of Polar RZ');
+grid on;
+
+% Add a super title for the whole figure
+sgtitle('Mean of Different Line Codes');
+
+% Convert to double for accuracy
+Unipolar_All = double(Unipolar_All);
+PolarNRZ_All = double(PolarNRZ_All);
+PolarRZ_All = double(PolarRZ_All);
+
+% Compute variance using your function
+Unipolar_Var = calculate_variance(Unipolar_All);
+PolarNRZ_Var = calculate_variance(PolarNRZ_All);
+PolarRZ_Var = calculate_variance(PolarRZ_All);
+
+% Create a figure with subplots for each variance
+figure;
+
+subplot(3,1,1);
+plot(t, Unipolar_Var, 'r', 'LineWidth', 2);
+xlabel('Time (s)');
+ylabel('Variance');
+title('Variance of Unipolar NRZ');
+grid on;
+
+subplot(3,1,2);
+plot(t, PolarNRZ_Var, 'g', 'LineWidth', 2);
+xlabel('Time (s)');
+ylabel('Variance');
+title('Variance of Polar NRZ');
+grid on;
+
+subplot(3,1,3);
+plot(t, PolarRZ_Var, 'b', 'LineWidth', 2);
+xlabel('Time (s)');
+ylabel('Variance');
+title('Variance of Polar RZ');
+grid on;
+
+% Adjust layout
+sgtitle('Variance of Different Line Codes'); % Super title for all subplots
+
+max_lag = 20; % Define the maximum lag
+
+% Compute autocorrelation using our function
+Unipolar_AutoCorr = calculate_autocorr(Unipolar_All, max_lag);
+PolarNRZ_AutoCorr = calculate_autocorr(PolarNRZ_All, max_lag);
+PolarRZ_AutoCorr = calculate_autocorr(PolarRZ_All, max_lag);
+
+% Plot autocorrelation for each waveform
+figure;
+
+subplot(3,1,1);
+plot(0:max_lag, Unipolar_AutoCorr(:, round(end/2)), 'r', 'LineWidth', 2);
+xlabel('Lag (\tau)');
+ylabel('Autocorr');
+title('Autocorrelation of Unipolar NRZ');
+grid on;
+
+subplot(3,1,2);
+plot(0:max_lag, PolarNRZ_AutoCorr(:, round(end/2)), 'g', 'LineWidth', 2);
+xlabel('Lag (\tau)');
+ylabel('Autocorr');
+title('Autocorrelation of Polar NRZ');
+grid on;
+
+subplot(3,1,3);
+plot(0:max_lag, PolarRZ_AutoCorr(:, round(end/2)), 'b', 'LineWidth', 2);
+xlabel('Lag (\tau)');
+ylabel('Autocorr');
+title('Autocorrelation of Polar RZ');
+grid on;
+
+% Adjust layout
+sgtitle('Autocorrelation of Different Line Codes');
+
 
 
 %-----------------------Functions----------------------------
@@ -164,4 +258,57 @@ function [Unipolar_Shifted, PolarNRZ_Shifted, PolarRZ_Shifted] = apply_random_sh
     end
 end
 
+function mean_waveform = calculate_mean(waveform_matrix)
+    % Calculates the mean across all realizations without using the mean function
+    % waveform_matrix: Matrix where each row is a realization
+    
+    [num_realizations, num_samples] = size(waveform_matrix); % Get matrix dimensions
+    mean_waveform = sum(waveform_matrix, 1) / num_realizations; % Sum and divide by count
+    
+end
+
+
+function variance_waveform = calculate_variance(waveform_matrix)
+    % Calculates the variance across all realizations without using the var function
+    % waveform_matrix: Matrix where each row is a realization
+    
+    % Compute the mean using the previously implemented function
+    mean_waveform = calculate_mean(waveform_matrix);
+    
+    [num_realizations, ~] = size(waveform_matrix); % Get the number of realizations
+    
+    % Compute variance manually using the variance formula
+    variance_waveform = sum((waveform_matrix - mean_waveform).^2, 1) / num_realizations;
+    
+end
+
+function autocorr_waveform = calculate_autocorr(waveform_matrix, max_lag)
+    % Computes the ensemble autocorrelation function R_x(τ)
+    % waveform_matrix: Each row is a realization of the process
+    % max_lag: Maximum lag for autocorrelation calculation
+
+    [num_realizations, num_samples] = size(waveform_matrix);
+    mean_waveform = calculate_mean(waveform_matrix); % Compute mean
+    variance_waveform = calculate_variance(waveform_matrix); % Compute variance
+    
+    autocorr_waveform = zeros(max_lag + 1, num_samples); % Initialize autocorr matrix
+    
+    % Compute autocorrelation for each lag τ
+    for tau = 0:max_lag
+        shifted_waveform = zeros(size(waveform_matrix)); % Initialize shifted matrix
+        
+        % Shift each row by τ (padding zeros for missing values)
+        if tau > 0
+            shifted_waveform(:, 1:end-tau) = waveform_matrix(:, tau+1:end);
+        else
+            shifted_waveform = waveform_matrix; % No shift for τ = 0
+        end
+        
+        % Compute autocorrelation using the formula
+        autocorr_waveform(tau + 1, :) = sum((waveform_matrix - mean_waveform) .* (shifted_waveform - mean_waveform), 1) ./ num_realizations;
+        
+        % Normalize by variance to get the autocorrelation coefficient
+        autocorr_waveform(tau + 1, :) = autocorr_waveform(tau + 1, :) ./ variance_waveform;
+    end
+end
 
