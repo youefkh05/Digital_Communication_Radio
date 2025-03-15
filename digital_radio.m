@@ -60,7 +60,7 @@ Unipolar_Shifted = double(Unipolar_Shifted);
 PolarNRZ_Shifted = double(PolarNRZ_Shifted);
 PolarRZ_Shifted = double(PolarRZ_Shifted);
 
-%calculate the mean acrros time
+%calculate the mean acrros time (question 1)
 Unipolar_Mean = calculate_mean(Unipolar_Shifted);
 PolarNRZ_Mean = calculate_mean(PolarNRZ_Shifted);
 PolarRZ_Mean = calculate_mean(PolarRZ_Shifted);
@@ -79,7 +79,7 @@ plot_variance(t_shifted, Unipolar_Var, PolarNRZ_Var, PolarRZ_Var);
 % Determine max_lag dynamically
 max_lag = size(Unipolar_Shifted, 2) - 1;
 
-%calculate the autocorrelation
+%calculate the autocorrelation (question 3)
 [Unipolar_AutoCorr, PolarNRZ_AutoCorr, PolarRZ_AutoCorr] = compute_stat_autocorr(Unipolar_Shifted, PolarNRZ_Shifted, PolarRZ_Shifted, max_lag);   
 
 %plot the autocorrelation
