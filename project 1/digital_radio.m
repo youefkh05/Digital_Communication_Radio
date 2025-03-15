@@ -114,6 +114,8 @@ disp(['Estimated Unipolar NRZ Time Mean: ', num2str(Final_Unipolar_TimeMean)]);
 disp(['Estimated Polar NRZ Time Mean: ', num2str(Final_PolarNRZ_TimeMean)]);
 disp(['Estimated Polar RZ Time Mean: ', num2str(Final_PolarRZ_TimeMean)]);
 
+fs = 100; % Sampling frequency 
+[BW_unipolar, BW_polarNRZ, BW_polarRZ] = estimate_all_bandwidths(R_unipolar_nrz, R_polar_nrz, R_polar_rz, fs);
 
 
 %-----------------------Functions----------------------------
@@ -520,7 +522,83 @@ function TimeMean = estimate_time_mean(signal)
     % Compute time mean as the average over all time samples
     TimeMean = sum(signal) / length(signal);
 end
+function [BW_unipolar, BW_polarNRZ, BW_polarRZ] = estimate_all_bandwidths(R_unipolar_nrz, R_polar_nrz, R_polar_rz, fs)
+    % Function to estimate the bandwidth for Unipolar NRZ, Polar NRZ, and Polar RZ
+    % Inputs:
+    %   R_unipolar_nrz  - Autocorrelation of Unipolar NRZ
+    %   R_polar_nrz  - Autocorrelation of Polar NRZ
+    %   R_polar_rz  - Autocorrelation of Polar RZ
+    %   fs  - Sampling frequency
+  
+    % Compute FFT of autocorrelation to get Power Spectral Density (PSD)
+    fft_autocorr_unipolar = fft(R_unipolar_nrz);
+    fft_autocorr_shifted_unipolar = fftshift(fft_autocorr_unipolar);
+    
+    fft_autocorr_polarNRZ = fft(R_polar_nrz);
+    fft_autocorr_shifted_polarNRZ = fftshift(fft_autocorr_polarNRZ);
+    
+    fft_autocorr_polarRZ = fft(R_polar_rz);
+    fft_autocorr_shifted_polarRZ = fftshift(fft_autocorr_polarRZ);
 
+    % Frequency axis
+    N1 = length(fft_autocorr_shifted_unipolar);
+    frequencies1 = linspace(-fs/2, fs/2, N1);
+    
+    N2 = length(fft_autocorr_shifted_polarNRZ);
+    frequencies2 = linspace(-fs/2, fs/2, N2);
+    
+    N3 = length(fft_autocorr_shifted_polarRZ);
+    frequencies3 = linspace(-fs/2, fs/2, N3);
+
+    % Compute PSD (absolute value and normalize by fs)
+    PSD_unipolar = abs(fft_autocorr_shifted_unipolar) / fs;
+    PSD_polarNRZ = abs(fft_autocorr_shifted_polarNRZ) / fs;
+    PSD_polarRZ = abs(fft_autocorr_shifted_polarRZ) / fs;
+
+    % Estimate Bandwidth using -3dB threshold
+    BW_unipolar = find_bandwidth(PSD_unipolar, frequencies1);
+    BW_polarNRZ = find_bandwidth(PSD_polarNRZ, frequencies2);
+    BW_polarRZ = find_bandwidth(PSD_polarRZ, frequencies3);
+
+    % Plot PSDs
+    figure("Name", "PSD Plot");
+
+    subplot(3,1,1);
+    plot(frequencies1, PSD_unipolar, 'g');
+    xlabel("Frequency (Hz)");
+    ylabel("PSD");
+    ylim([0 2]);
+    title("Unipolar NRZ PSD");
+
+    subplot(3,1,2);
+    plot(frequencies2, PSD_polarNRZ, 'b');
+    xlabel("Frequency (Hz)");
+    ylabel("PSD");
+    title("Polar NRZ PSD");
+
+    subplot(3,1,3);
+    plot(frequencies3, PSD_polarRZ, 'r');
+    xlabel("Frequency (Hz)");
+    ylabel("PSD");
+    title("Polar RZ PSD");
+end
+
+function BW = find_bandwidth(PSD, freq_axis)
+    % Function to find the -3dB bandwidth from PSD
+    PSD_max = max(PSD);       % Find max power
+    threshold = PSD_max / 2;  % -3dB threshold (half power)
+
+    % Find indices where PSD is above threshold
+    valid_indices = find(PSD >= threshold);
+
+    if isempty(valid_indices)
+        BW = 0; % If no valid range is found, return 0
+        return;
+    end
+
+    % Compute bandwidth as the difference between first and last crossing points
+    BW = abs(freq_axis(max(valid_indices)) - freq_axis(min(valid_indices)));
+end
 
 
 
