@@ -20,13 +20,15 @@ bits = randi([0 1], 1, bits_Num);
 
 % Define the time vector from 0 to (Samples_Num-1)*Ts seconds
 t = 0:Ts/samples_per_bit:Ts/samples_per_bit*(Samples_Num-1);
-[~, bit_stream, ~] = generate_Impulse_linecodes(bits, 1, samples_per_bit);
+[~, bit_stream, ~] = generate_Impulse_linecodes(bits, A, samples_per_bit);
 
 %plot the bit straem
 plot_linecode(t, bit_stream, 'Polar NRZ bit stream');
 
+%-----------------------Requiernment 1----------------------------
+
 % Generate the PAM waveform
-y_tx =  denorm_p*generate_pam_waveform(bit_stream, p);
+y_tx =  generate_pam_waveform(bit_stream, p);
 
 % Plot the waveform vs time
 plot_pam_waveform(Ts, y_tx, "The transmittor Output");
@@ -34,7 +36,21 @@ plot_pam_waveform(Ts, y_tx, "The transmittor Output");
 % Reverse the pulse shaping function p[n] to create the matched filter
 p_matched = fliplr(p);
 
+% Plot
+plot_pulse_shape(p_matched, Ts, 'Triangle Pulse Matched filter');
 
+% Convolve the input signal with the matched filter
+y_filtered = conv(y_tx, p_matched); % 'same' keeps the output size same as input
+
+% Plot the waveform vs time
+plot_RX_waveform(Ts, y_filtered,1, samples_per_bit,bits_Num, "The reciver output due to matched filter");
+
+
+%using correlator
+y_corr = correlate_RX(y_tx, p, samples_per_bit);
+
+%plot the matched and correlator ouptut vs time
+plot_matched_vs_correlator(Ts, y_filtered, y_tx, p, samples_per_bit, bits_Num);
 
 
 
@@ -167,4 +183,151 @@ function plot_pam_waveform(Ts, y_tx, plot_title)
     yline(0, 'k', 'LineWidth', 1.5);  % 'k' is for a black line
 end
 
+function plot_RX_waveform(Ts, y_rx,shift_delay, samples_per_bit, bits_Num, plot_title)
+    % PLOT_RX_WAVEFORM Plots the received waveform (after filtering) vs time vector t and adds a zero amplitude line.
+    %
+    % Inputs:
+    %   Ts            - Symbol duration (in seconds)
+    %   y_rx          - Receiver output waveform (filtered signal)
+    %   samples_per_bit - Number of samples per bit
+    %   bits_Num      - Total number of bits in the signal
+    %   plot_title    - Title of the plot
+    
+    % Add a zero element at the start to ensure correct length
+    y_rx_z = shift_right_zero(y_rx, shift_delay);  % Append a zero at the start of the result
+    N = length(y_rx_z);                  % Number of samples
+    
+    % Create the time vector from 0 to Ts*(N-1) with time step Ts/samples_per_bit
+    % Adjust length of t to match the length of y_rx_z
+    t = 0:Ts/samples_per_bit:Ts*(N-1);
+    
+    % Check if the length of the time vector is greater than the signal length
+    if length(t) > length(y_rx_z)
+        t = t(1:length(y_rx_z));  % Trim t if necessary to match the length of y_rx_z
+    end
+    
+    % Plot the waveform using the time vector t
+
+    % Plot the matched filter output (blue line)
+    h1 = plot(t, y_rx_z, 'b', 'LineWidth', 2);  % Blue line for matched filter output
+    title(plot_title);
+    xlabel('Time [Ts sec]');  % Using time as x-axis
+    ylabel('Amplitude');
+    grid on;
+    
+    % Add horizontal line at zero amplitude
+    yline(0, 'k', 'LineWidth', 1.5);  % Add a black horizontal line at zero
+    
+    % Add dots along the time axis (every Ts*samples_per_bit)
+    hold on;
+    % Initialize the dot_values vector with zeros
+    dot_values = zeros(1, N);  % Initialize with zeros
+    
+    % Set the value of dot_values at each symbol's time step (every Ts*samples_per_bit)
+    dot_values(1:samples_per_bit:end) = y_rx_z(1:samples_per_bit:end);  % Update only at the sampled points
+    
+    % Initialize dot_time for every time step
+    dot_time = t;  % Time points corresponding to all samples
+    
+
+    % Plot the hollow dots (red outline, no fill)
+    plot(dot_time, dot_values, 'o', 'MarkerSize', 6, 'MarkerEdgeColor', 'r', 'MarkerFaceColor', 'r');
+    
+    % Add vertical lines and dots manually at each sampled point
+    sample_indices = 1:samples_per_bit:N;
+    for i = 1:length(sample_indices)
+        x = t(sample_indices(i));
+        y = dot_values(sample_indices(i));
+
+        % Draw vertical red line from 0 to sample value
+        h2 = line([x x], [0 y], 'Color', 'r', 'LineWidth', 1.5);  % Save handle to one line (for legend)
+
+        % Add a hollow red dot at the top of the line
+        plot(x, y, 'o', 'MarkerSize', 6, 'MarkerEdgeColor', 'r', 'MarkerFaceColor', 'w');
+    end
+
+    
+    % Set the x-axis ticks and labels
+    xticks(0:Ts:max(t));               % Set ticks at multiples of Ts
+    xticklabels(0:length(xticks)-1);    % Label ticks as 0, 1, 2, 3, ...
+    
+    % Set the x-axis limits as [0, (N-samples_per_bit+1)/10]
+    xlim([0 2*(N - samples_per_bit )/bits_Num]);
+    
+    % Add the legend with the custom line objects
+    legend([h1, h2], 'Matched Filter Output', 'Sampled Output', 'Location', 'best', 'Box', 'on');
+    
+    hold off;
+
+end
+
+function y_correlated = correlate_RX(y, p, Ts)
+% CORRELATE_RX Performs correlation using integrate-and-dump method
+% 
+% Inputs:
+%   y   - Received signal (vector)
+%   p   - Pulse shape (vector), length must equal Ts
+%   Ts  - Number of samples per symbol (samples per bit)
+%
+% Output:
+%   y_correlated - Correlated output per symbol
+
+    % Ensure p is the same size as Ts
+    if length(p) ~= Ts
+        error('Length of pulse shape p must equal Ts (samples per symbol).');
+    end
+
+    % Pointwise multiply received signal by the pulse shape
+    y_matched = y .* repmat(p, 1, ceil(length(y)/Ts));
+    y_matched = y_matched(1:length(y));  % Trim any extra points from padding
+
+    % Use built-in intdump for integrate-and-dump
+    y_correlated = intdump(y_matched, Ts);  % returns one value per symbol
+    
+    % Upsample the correlated result to original length (for plotting, etc.)
+    y_correlated = upsample(y_correlated, Ts);  % Insert Ts-1 zeros between samples
+end
+
+function y_shifted = shift_right_zero(y, shift_amt)
+%SHIFT_RIGHT_ZERO Right-shifts the array by 'shift_amt' and fills with zeros at the beginning
+%
+% Inputs:
+%   y          - Input vector
+%   shift_amt  - Number of positions to shift
+%
+% Output:
+%   y_shifted  - Shifted vector with zero-padding
+
+    if shift_amt >= length(y)
+        y_shifted = [zeros(1, shift_amt), y];  % Shift exceeds length: just prepend all zeros
+    else
+        y_shifted = [zeros(1, shift_amt), y(1:end)];
+    end
+end
+
+function plot_matched_vs_correlator(Ts, y_filtered, y_tx, p, samples_per_bit, bits_Num)
+    % PLOT_MATCHED_AND_CORRELATOR Create a figure with two subplots: 
+    % one for the matched filter output and one for the correlator output.
+    %
+    % Inputs:
+    %   Ts            - Symbol duration (in seconds)
+    %   y_filtered    - Filtered receiver output signal
+    %   y_tx          - Transmitted signal
+    %   p             - Matched filter pulse
+    %   samples_per_bit - Number of samples per bit
+    %   bits_Num      - Total number of bits in the signal
+
+    % Create a new figure for the subplots
+    figure;
+    
+    % Create the first subplot (Matched Filter Output)
+    subplot(2, 1, 1);  % Two rows, one column, first subplot
+    plot_RX_waveform(Ts, y_filtered, 1, samples_per_bit, bits_Num, "The receiver output due to matched filter");
+
+    % Create the second subplot (Correlator Output)
+    subplot(2, 1, 2);  % Two rows, one column, second subplot
+    y_corr = correlate_RX(y_tx, p, samples_per_bit);  % Get the correlated signal
+    plot_RX_waveform(Ts, y_corr, 0, samples_per_bit, bits_Num, "The correlator Output");
+
+end
 
