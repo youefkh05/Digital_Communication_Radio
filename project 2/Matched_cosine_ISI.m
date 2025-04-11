@@ -1,45 +1,42 @@
-clc; 
-clear;
-close all;
-
-%using the functions from project1
 clc;
 clear;
 close all;
 
-%using the functions from project1
-N = 50;  % Number of samples for smooth triangle
-p = linspace(1, 0, N);
-p = p / norm(p);  % Normalize energy
+% Parameters
+N = 5+1;                   % Number of samples
+bits_per_symbol = 10;      % 10 bits
+Ts = 1;         % Sampling interval
+A = 1;          % Peak amplitude at time = 0
+Numofbits = bits_per_symbol * N;
 
+% Generate triangle pulse
+p = triangle_pulse(N, A);
 
-plot(p, 'LineWidth', 2);
-title('Smooth Triangle Pulse Shape');
-xlabel('Sample Index');
-ylabel('Amplitude');
-grid on;
- 
-
-
-% Generate bits and waveform
-bits = randi([0 1], 1, num_symbols);
-y_tx = generate_pam_waveform(bits, p, samples_per_symbol);
-
-% Time vector for the output signal
-t = 0:0.2:(length(y_tx)-1)*0.2;
+% Define the time vector from 0 to Ts second
+t = linspace(0, Ts, N);       % Time vector
 
 % Plot
-stairs(t, y_tx, 'LineWidth', 1.5);
-title('PAM Realization (10 symbols)');
+plot_pulse_shape(t, p);
+
+% Generate random bits
+bits = randi([0 1], 1, Numofbits);
+
+% Generate the modulated waveform
+y_tx = generate_pam_waveform(bits, p, N);
+
+% Construct time vector
+total_samples = length(y_tx);
+Ts_symbol = 1;                         % Duration of one symbol (in seconds)
+dt = Ts_symbol / N;                   % Time between samples
+t_y_tx = (0:total_samples-1) * dt;    % Time vector for y_tx
+
+% Plot the final waveform with time axis
+figure;
+plot(t_y_tx, y_tx, 'LineWidth', 1.5);
+title('PAM Transmitted Signal');
 xlabel('Time (s)');
 ylabel('Amplitude');
-grid on;
-
-
-
-
-
-
+grid 
 
 
 
@@ -49,63 +46,49 @@ grid on;
 
 %-----------------------Functions----------------------------
 
-function y_tx = generate_pam_waveform(bits, p, samples_per_symbol)
+function p = triangle_pulse(N, A)
+% TRIANGLE_PULSE Generates a smooth triangle pulse
+%
+% Inputs:
+%   N  - Number of samples
+%   A  - Amplitude of the triangle at time = 0
+%
+% Output:
+%   p  - Triangle pulse vector (linearly decreasing from A to 0, not normalized)
+
+    % Create a linearly decreasing vector from A to 0
+    p = A*linspace(1, 0, N);
+    
+end
+
+function plot_pulse_shape(t, p)
+% PLOT_PULSE_SHAPE Plots a given pulse shape against time
+%
+% Inputs:
+%   t - Time vector
+%   p - Pulse shape vector
+
+    plot(t, p, 'LineWidth', 2);
+    title('Smooth Triangle Pulse Shape');
+    xlabel('Time (s)');
+    ylabel('Amplitude');
+    grid on;
+
+end
+
+function y_tx = generate_pam_waveform(bits, p, N)
     % Converts bits to PAM impulses and convolves with pulse shape p
     % bits: binary array (0, 1)
     % p: pulse shaping vector (e.g., [5 4 3 2 1]/sqrt(55))
-    % samples_per_symbol: 5 in this case
+    % N: 5 in this case
     
     % Convert bits to symbols: 0 -> -1, 1 -> +1
     symbols = 2 * bits - 1;
 
-    % Upsample: insert (samples_per_symbol - 1) zeros between each symbol
-    impulse_train = upsample(symbols, samples_per_symbol);
+    % Upsample: insert (N - 1) zeros between each symbol
+    impulse_train = upsample(symbols, N);
 
     % Convolve with pulse shaping function
     y_tx = conv(impulse_train, p);
 end
 
-function plot_linecodes(Data, Unipolar, PolarNRZ, PolarRZ, t, num_bits_to_show, plot_title)
-    % Ensure num_bits_to_show does not exceed the actual number of bits
-    num_samples_per_bit = ceil(length(t) / length(Data));
-    num_samples_to_show = num_bits_to_show * num_samples_per_bit;
-
-    % Trim the signals to display only the required number of bits
-    t_show = t(1:num_samples_to_show);
-    Unipolar_show = Unipolar(1, 1:num_samples_to_show); % Select row 1 explicitly
-    PolarNRZ_show = PolarNRZ(1, 1:num_samples_to_show);
-    PolarRZ_show = PolarRZ(1, 1:num_samples_to_show);
-
-    % Convert Data into a sample-wise representation for accurate plotting
-    Data_show = repelem(Data(1:num_bits_to_show), num_samples_per_bit);
-    Data_t = t(1:length(Data_show)); % Adjust time axis
-
-    % Plot the signals
-    figure;
-    sgtitle(plot_title); % Set a title for the entire figure
-    
-    subplot(4,1,1);
-    stairs(Data_t, Data_show, 'k', 'LineWidth', 2);
-    title('Orignal Data');
-    ylim([-0.5, 1.5]); % Keep the binary level range
-    yticks([0 1]);
-    yticklabels({'0', '1'});
-    grid on;
-
-    subplot(4,1,2);
-    stairs(t_show, Unipolar_show, 'b', 'LineWidth', 2);
-    title('Unipolar NRZ');
-    grid on;
-
-    subplot(4,1,3);
-    stairs(t_show, PolarNRZ_show, 'r', 'LineWidth', 2);
-    title('Polar NRZ');
-    grid on;
-
-    subplot(4,1,4);
-    stairs(t_show, PolarRZ_show, 'm', 'LineWidth', 2);
-    title('Polar RZ');
-    grid on;
-
-    xlabel('Time (s)');
-end
