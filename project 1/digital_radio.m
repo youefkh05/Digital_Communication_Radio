@@ -36,7 +36,6 @@ for i = 1:N_realizations
 end
 
 
-
 % Plot the first 5 realizations as a sample
 figure;
 for i = 1:5

@@ -29,7 +29,7 @@ plot_linecode(t, bit_stream, 'Polar NRZ bit stream');
 y_tx =  denorm_p*generate_pam_waveform(bit_stream, p);
 
 % Plot the waveform vs time
-plot_pam_waveform(Ts, y_tx, "The transmittor Output");
+plot_pam_waveform(Ts, y_tx);
 
 % Reverse the pulse shaping function p[n] to create the matched filter
 p_matched = fliplr(p);
@@ -143,7 +143,7 @@ function y_tx = generate_pam_waveform(upsampled_bit_stream, p)
  
 end
 
-function plot_pam_waveform(Ts, y_tx, plot_title)
+function plot_pam_waveform(Ts, y_tx, plot_tiltle)
     % PLOT_PAM_WAVEFORM Plots the PAM waveform using time vector t and adds a zero amplitude line.
     %
     % Inputs:
