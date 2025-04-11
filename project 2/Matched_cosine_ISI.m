@@ -12,8 +12,16 @@ Samples_Num=samples_per_bit* bits_Num;
 % Generate triangle pulse
 [p,denorm_p] = triangle_pulse(samples_per_bit);
 
+% Reverse the pulse shaping function p[n] to create the matched filter
+p_matched = fliplr(p);
+
+% Generate hold filter
+hold_filter = make_hold_filter(Ts, samples_per_bit, 1);
+
 % Plot
 plot_pulse_shape(p, Ts, 'Triangle Pulse Shape Normalized');
+plot_pulse_shape(hold_filter, Ts, 'Hold Filter Normalized');
+plot_pulse_shape(p_matched, Ts, 'Triangle Pulse Matched filter');
 
 % Generate random bits
 bits = randi([0 1], 1, bits_Num);
@@ -33,24 +41,20 @@ y_tx =  generate_pam_waveform(bit_stream, p);
 % Plot the waveform vs time
 plot_pam_waveform(Ts, y_tx, "The transmittor Output");
 
-% Reverse the pulse shaping function p[n] to create the matched filter
-p_matched = fliplr(p);
-
-% Plot
-plot_pulse_shape(p_matched, Ts, 'Triangle Pulse Matched filter');
-
 % Convolve the input signal with the matched filter
-y_filtered = conv(y_tx, p_matched); % 'same' keeps the output size same as input
+y_matched = conv(y_tx, p_matched); 
 
-% Plot the waveform vs time
-plot_RX_waveform(Ts, y_filtered,1, samples_per_bit,bits_Num, "The reciver output due to matched filter");
-
+% Convolve the input signal with the hold filter
+y_hold = conv(y_tx, hold_filter); 
 
 %using correlator
 y_corr = correlate_RX(y_tx, p, samples_per_bit);
 
+%plot the matched and hold ouptut vs time
+plot_matched_vs_hold(Ts, y_matched, y_hold, samples_per_bit, bits_Num)
+
 %plot the matched and correlator ouptut vs time
-plot_matched_vs_correlator(Ts, y_filtered, y_tx, p, samples_per_bit, bits_Num);
+plot_matched_vs_correlator(Ts, y_matched, y_tx, p, samples_per_bit, bits_Num);
 
 
 
@@ -183,7 +187,7 @@ function plot_pam_waveform(Ts, y_tx, plot_title)
     yline(0, 'k', 'LineWidth', 1.5);  % 'k' is for a black line
 end
 
-function plot_RX_waveform(Ts, y_rx,shift_delay, samples_per_bit, bits_Num, plot_title)
+function plot_RX_waveform(Ts, y_rx,shift_delay, samples_per_bit, bits_Num, plot_title, color)
     % PLOT_RX_WAVEFORM Plots the received waveform (after filtering) vs time vector t and adds a zero amplitude line.
     %
     % Inputs:
@@ -208,8 +212,8 @@ function plot_RX_waveform(Ts, y_rx,shift_delay, samples_per_bit, bits_Num, plot_
     
     % Plot the waveform using the time vector t
 
-    % Plot the matched filter output (blue line)
-    h1 = plot(t, y_rx_z, 'b', 'LineWidth', 2);  % Blue line for matched filter output
+    % Plot the matched filter output 
+    h1 = plot(t, y_rx_z, 'Color', color, 'LineWidth', 2);   % Blue line for matched filter output
     title(plot_title);
     xlabel('Time [Ts sec]');  % Using time as x-axis
     ylabel('Amplitude');
@@ -322,12 +326,57 @@ function plot_matched_vs_correlator(Ts, y_filtered, y_tx, p, samples_per_bit, bi
     
     % Create the first subplot (Matched Filter Output)
     subplot(2, 1, 1);  % Two rows, one column, first subplot
-    plot_RX_waveform(Ts, y_filtered, 1, samples_per_bit, bits_Num, "The receiver output due to matched filter");
+    plot_RX_waveform(Ts, y_filtered, 1, samples_per_bit, bits_Num, "The receiver output due to matched filter", 'g');
 
     % Create the second subplot (Correlator Output)
     subplot(2, 1, 2);  % Two rows, one column, second subplot
     y_corr = correlate_RX(y_tx, p, samples_per_bit);  % Get the correlated signal
-    plot_RX_waveform(Ts, y_corr, 0, samples_per_bit, bits_Num, "The correlator Output");
+    plot_RX_waveform(Ts, y_corr, 0, samples_per_bit, bits_Num, "The correlator Output", 'b');
 
 end
+
+function plot_matched_vs_hold(Ts, y_matched, y_hold, samples_per_bit, bits_Num)
+    % PLOT_MATCHED_AND_CORRELATOR Create a figure with two subplots: 
+    % one for the matched filter output and one for the correlator output.
+    %
+    % Inputs:
+    %   Ts            - Symbol duration (in seconds)
+    %   y_hold    - Filtered receiver output signal
+    %   y_tx          - Transmitted signal
+    %   p             - Matched filter pulse
+    %   samples_per_bit - Number of samples per bit
+    %   bits_Num      - Total number of bits in the signal
+
+    % Create a new figure for the subplots
+    figure;
+    
+    % Create the first subplot (Matched Filter Output)
+    subplot(2, 1, 1);  % Two rows, one column, first subplot
+    plot_RX_waveform(Ts, y_matched, 1, samples_per_bit, bits_Num, "The receiver output due to matched filter", 'c');
+
+    % Create the second subplot (Correlator Output)
+    subplot(2, 1, 2);  % Two rows, one column, second subplot
+    plot_RX_waveform(Ts, y_hold, 0, samples_per_bit, bits_Num, "The receiver output due to hold filter", 'm');
+
+end
+
+
+function hold_filter = make_hold_filter(Ts, N, A)
+    % MAKE_HOLD_FILTER Creates a flat, energy-normalized filter with scaling factor A.
+    %
+    % Inputs:
+    %   Ts  - Duration of the filter (in seconds)
+    %   N   - Number of samples
+    %   A   - Amplitude scaling factor
+    %
+    % Outputs:
+    %   hold_filter    - Filter impulse response (flat and energy normalized)
+
+    % Time vector for the filter, from 0 to Ts, divided into N samples
+    t = 0:Ts/N:Ts*(N-1)/N;  % From 0 to Ts with N samples
+    
+    % Filter impulse response (flat and energy normalized)
+    hold_filter = A * ones(size(t)) / sqrt(Ts*N);  % Amplitude scaled 
+end
+
 
