@@ -26,20 +26,21 @@ plot_pulse_shape(p_matched, Ts, 'Triangle Pulse Matched filter');
 % Generate random bits
 bits = randi([0 1], 1, bits_Num);
 
-% Define the time vector from 0 to (Samples_Num-1)*Ts seconds
-t = 0:Ts/samples_per_bit:Ts/samples_per_bit*(Samples_Num-1);
+% Define the time vector for the transmitted signal
+t = 0:Ts/samples_per_bit:(Samples_Num-1)*Ts/samples_per_bit; % Adjusted time vector
+
 [~, bit_stream, ~,~,bit_stream_symbols] = generate_Impulse_linecodes(bits, A, samples_per_bit);
 
 %plot the bit straem
 plot_linecode(t, bit_stream, 'Polar NRZ bit stream');
 
 %-----------------------Requiernment 1----------------------------
-
+%{
 % Generate the PAM waveform
 y_tx =  generate_pam_waveform(bit_stream, p);
 
 % Plot the waveform vs time
-plot_pam_waveform(Ts, y_tx, "The transmittor Output");
+plot_pam_waveform(Ts, y_tx, 'The Transmitter Output' ,samples_per_bit);
 
 % Convolve the input signal with the matched filter
 y_matched = conv(y_tx, p_matched); 
@@ -47,17 +48,80 @@ y_matched = conv(y_tx, p_matched);
 % Convolve the input signal with the hold filter
 y_hold = conv(y_tx, hold_filter); 
 
-%using correlator
+% using correlator
 y_corr = correlate_RX(y_tx, p, samples_per_bit);
 
-%plot the matched and hold ouptut vs time
+% plot the matched and hold ouptut vs time
 [y_filtered_sampled ,y_corr_sampled] = plot_matched_vs_hold(Ts, y_matched, y_hold, samples_per_bit, bits_Num);
 
-%plot the matched and correlator ouptut vs time
+% plot the matched and correlator ouptut vs time
 [~ ,y_hold_sampled] = plot_matched_vs_correlator(Ts, y_matched, y_tx, p, samples_per_bit, bits_Num);
 
+% plot the Tx input vs All Rx output
+plot_all_outputs_vs_input(Ts, bit_stream_symbols, y_filtered_sampled, y_corr_sampled, y_hold_sampled);
+%}
+
+%-----------------------Requiernment 2----------------------------
+
+bits_Num = 10000;                % 10000 bits
+Samples_Num=samples_per_bit* bits_Num;
+
+% Generate random bits
+bits = randi([0 1], 1, bits_Num);
+
+% Define the time vector for the transmitted signal
+t = 0:Ts/samples_per_bit:(Samples_Num-1)*Ts/samples_per_bit; % Adjusted time vector
+
+[~, bit_stream, ~,~,bit_stream_symbols] = generate_Impulse_linecodes(bits, A, samples_per_bit);
+
+%plot the bit straem
+plot_linecode(t, bit_stream, 'Polar NRZ bit stream');
+
+% Generate the PAM waveform
+y_tx =  generate_pam_waveform(bit_stream, p);
+
+% Plot the waveform vs time
+plot_pam_waveform(Ts, y_tx, 'The Transmitter Output' ,samples_per_bit);
+
+% AWGN Channel
+
+N_tx = length(y_tx);  % The length of your transmitted signal
+
+% Generate unity variance, zero mean white Gaussian noise
+AWGN = randn(1, N_tx);  % Generate noise with the same length as y_tx
+
+% The noise with unity variance
+N0 = 1; % Example value for noise power
+AWGN_scaled = sqrt(N0 / 2) * AWGN;  % Scale noise to have variance = N0/2
+
+% Now the noise is ready to be added to the signal
+y_tx_noise = y_tx + AWGN_scaled;  % Add noise to the signal
+
+% Convolve the input signal with the matched filter
+y_matched = conv(y_tx_noise, p_matched); 
+
+% Convolve the input signal with the hold filter
+y_hold = conv(y_tx_noise, hold_filter); 
+
+% using correlator
+y_corr = correlate_RX(y_tx_noise, p, samples_per_bit);
+
+% plot the matched and hold ouptut vs time
+[y_filtered_sampled ,y_corr_sampled] = plot_matched_vs_hold(Ts, y_matched, y_hold, samples_per_bit, bits_Num);
+
+% plot the matched and correlator ouptut vs time
+[~ ,y_hold_sampled] = plot_matched_vs_correlator(Ts, y_matched, y_tx_noise, p, samples_per_bit, bits_Num);
+
+% plot the Tx input vs All Rx output
 plot_all_outputs_vs_input(Ts, bit_stream_symbols, y_filtered_sampled, y_corr_sampled, y_hold_sampled);
 
+
+% Calculate the probability of error
+polar_threshold = 0;
+[Pe, error_array] = calculate_error_probability(bit_stream_symbols, y_filtered_sampled, polar_threshold, A);
+
+% Display the result
+disp(['Probability of Error (BER) = ', num2str(Pe)]);
 
 %-----------------------Functions----------------------------
 
@@ -164,7 +228,7 @@ function y_tx = generate_pam_waveform(upsampled_bit_stream, p)
  
 end
 
-function plot_pam_waveform(Ts, y_tx, plot_title)
+function plot_pam_waveform(Ts, y_tx, plot_title,smaple_per_bit)
     % PLOT_PAM_WAVEFORM Plots the PAM waveform using time vector t and adds a zero amplitude line.
     %
     % Inputs:
@@ -173,8 +237,8 @@ function plot_pam_waveform(Ts, y_tx, plot_title)
     
     % Add a zero element at the end
     y_tx_z = [y_tx, 0];  % Append a zero at the end of the result
-    N = length(y_tx_z)-1;                     % Number of samples
-    t = 0:10*Ts/N:Ts*N/5;                 % Discrete time vector
+    N = length(y_tx_z);                     % Number of samples
+    t = 0:Ts/smaple_per_bit:Ts*(N-1)/smaple_per_bit;                 % Discrete time vector
     
     % Plot the waveform using the time vector t
     figure;
@@ -257,7 +321,7 @@ function [sampled_values] = plot_RX_waveform(Ts, y_rx,shift_delay, samples_per_b
     xticklabels(0:length(xticks)-1);    % Label ticks as 0, 1, 2, 3, ...
     
     % Set the x-axis limits as [0, (N-samples_per_bit+1)/10]
-    xlim([0 ceil(2*(N - samples_per_bit )/bits_Num)]);
+    xlim([0 ceil((N)/samples_per_bit)-1]);
     
     % Add the legend with the custom line objects
     legend([h1, h2], 'Matched Filter Output', 'Sampled Output', 'Location', 'best', 'Box', 'on');
@@ -378,7 +442,6 @@ function [y_matched_smapled ,y_hold_sampled] = plot_matched_vs_hold(Ts, y_matche
 
 end
 
-
 function hold_filter = make_hold_filter(Ts, N, A)
     % MAKE_HOLD_FILTER Creates a flat, energy-normalized filter with scaling factor A.
     %
@@ -457,3 +520,30 @@ function plot_all_outputs_vs_input(Ts, message, y_filtered_sampled, y_corr_sampl
     grid on;
     xlim([0 t(end)]);
 end
+
+function [Pe, error_array] = calculate_error_probability(input, output, threshold, A)
+    % CALCULATE_ERROR_PROBABILITY
+    %   Compares the detected symbols with the transmitted symbols using a threshold.
+    %   Calculates the probability of error (BER) and provides an error array for visualization.
+    %
+    % Inputs:
+    %   input      - Transmitted symbol stream (1xN) [-A, A]
+    %   output     - Received output (1xN) after filtering and sampling
+    %   threshold  - Decision threshold (e.g., for polar, it would be 0)
+    %   A          - The amplitude used for the symbols (e.g., +A and -A)
+    %
+    % Outputs:
+    %   Pe         - Probability of error (BER)
+    %   error_array - Array of errors (1xN), 0 for no error, 1 for error
+
+    % Decision rule (Apply threshold to output to decide the received symbols)
+    decision = output > threshold;  % Decision rule: 1 if output > threshold, else 0
+    decision = A*(2 * decision - 1);    % Map 1 to +A and 0 to -A (polar decision)
+
+    % Compare the detected symbols (decision) with the transmitted symbols (input)
+    error_array = (decision ~= input);  % 0 for matched, 1 for error
+    
+    % Calculate probability of error (BER)
+    Pe = sum(error_array) / length(input);  % Ratio of errors to total bits
+end
+
