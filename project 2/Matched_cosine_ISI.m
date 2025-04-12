@@ -12,6 +12,9 @@ Samples_Num=samples_per_bit* bits_Num;
 % Generate triangle pulse
 [p,denorm_p] = triangle_pulse(samples_per_bit);
 
+% theoretical calculation
+Eb = denorm_p* denorm_p;     % Energy per bit (form the pulse shape)
+
 % Reverse the pulse shaping function p[n] to create the matched filter
 p_matched = fliplr(p);
 
@@ -63,7 +66,7 @@ plot_all_outputs_vs_input(Ts, bit_stream_symbols, y_filtered_sampled, y_corr_sam
 
 %-----------------------Requiernment 2----------------------------
 
-bits_Num = 10000;                % 10000 bits
+bits_Num = 100;                % 10000 bits
 Samples_Num=samples_per_bit* bits_Num;
 
 % Generate random bits
@@ -84,18 +87,8 @@ y_tx =  generate_pam_waveform(bit_stream, p);
 plot_pam_waveform(Ts, y_tx, 'The Transmitter Output' ,samples_per_bit);
 
 % AWGN Channel
-
-N_tx = length(y_tx);  % The length of your transmitted signal
-
-% Generate unity variance, zero mean white Gaussian noise
-AWGN = randn(1, N_tx);  % Generate noise with the same length as y_tx
-
-% The noise with unity variance
-N0 = 1; % Example value for noise power
-AWGN_scaled = sqrt(N0 / 2) * AWGN;  % Scale noise to have variance = N0/2
-
-% Now the noise is ready to be added to the signal
-y_tx_noise = y_tx + AWGN_scaled;  % Add noise to the signal
+SNR_db  = -2;                % SNR given in dB from -2 dB to 5 dB in 1 dB steps
+[y_tx_noise ,SNR_lin ,N0 , AWGN_scaled] = AddAWGN(y_tx, Eb, SNR_db);
 
 % Convolve the input signal with the matched filter
 y_matched = conv(y_tx_noise, p_matched); 
@@ -118,10 +111,22 @@ plot_all_outputs_vs_input(Ts, bit_stream_symbols, y_filtered_sampled, y_corr_sam
 
 % Calculate the probability of error
 polar_threshold = 0;
-[Pe, error_array] = calculate_error_probability(bit_stream_symbols, y_filtered_sampled, polar_threshold, A);
+[BER, error_array] = calculate_error_probability(bit_stream_symbols, y_filtered_sampled, polar_threshold, A);
 
 % Display the result
-disp(['Probability of Error (BER) = ', num2str(Pe)]);
+disp(['Probability of Error (BER) = ', num2str(BER)]);
+
+% Calculate the  Theoretical probability of error
+theoretical_BER = 0.5 * erfc(sqrt(SNR_lin));  % Theoretical BER
+
+% Display the result
+disp(['Theoretical BER: ', num2str(theoretical_BER)]);
+
+SNR_db  = -2:1:5;                % SNR given in dB from -2 dB to 5 dB in 1 dB steps
+
+[BER_matched, BER_hold, theoretical_BER] = ...
+    BER_vs_SNR(y_tx, Eb, p_matched, hold_filter, ...
+    samples_per_bit, bits_Num, bit_stream_symbols, A, SNR_db)
 
 %-----------------------Functions----------------------------
 
@@ -168,7 +173,8 @@ function plot_pulse_shape(p, Ts, plot_title)
     grid on;
 end
 
-function [Unipolar, PolarNRZ, PolarRZ, unipolar_symbols, polar_symbols] = generate_Impulse_linecodes(Data, A, samples_per_bit)
+function [Unipolar, PolarNRZ, PolarRZ, unipolar_symbols, polar_symbols] =...
+    generate_Impulse_linecodes(Data, A, samples_per_bit)
 % GENERATE_LINECODES Generates Unipolar, Polar NRZ, and Polar RZ waveforms.
 %
 % Inputs:
@@ -252,7 +258,9 @@ function plot_pam_waveform(Ts, y_tx, plot_title,smaple_per_bit)
     yline(0, 'k', 'LineWidth', 1.5);  % 'k' is for a black line
 end
 
-function [sampled_values] = plot_RX_waveform(Ts, y_rx,shift_delay, samples_per_bit, bits_Num, plot_title, color)
+function [sampled_values] = ...
+    plot_RX_waveform(Ts, y_rx,shift_delay, ...
+    samples_per_bit, bits_Num, plot_title, color)
     % PLOT_RX_WAVEFORM Plots the received waveform (after filtering) vs time vector t and adds a zero amplitude line.
     %
     % Inputs:
@@ -391,7 +399,9 @@ function y_shifted = shift_right_zero(y, shift_amt)
     end
 end
 
-function [y_filtered_sampled ,y_corr_smapled] = plot_matched_vs_correlator(Ts, y_filtered, y_tx, p, samples_per_bit, bits_Num)
+function [y_filtered_sampled ,y_corr_smapled] = ...
+    plot_matched_vs_correlator(Ts, y_filtered, y_tx, p,...
+    samples_per_bit, bits_Num)
     % PLOT_MATCHED_AND_CORRELATOR Create a figure with two subplots: 
     % one for the matched filter output and one for the correlator output.
     %
@@ -417,7 +427,9 @@ function [y_filtered_sampled ,y_corr_smapled] = plot_matched_vs_correlator(Ts, y
 
 end
 
-function [y_matched_smapled ,y_hold_sampled] = plot_matched_vs_hold(Ts, y_matched, y_hold, samples_per_bit, bits_Num)
+function [y_matched_smapled ,y_hold_sampled] = ...
+    plot_matched_vs_hold(Ts, y_matched, y_hold, ...
+    samples_per_bit, bits_Num)
     % PLOT_MATCHED_AND_CORRELATOR Create a figure with two subplots: 
     % one for the matched filter output and one for the correlator output.
     %
@@ -547,3 +559,92 @@ function [Pe, error_array] = calculate_error_probability(input, output, threshol
     Pe = sum(error_array) / length(input);  % Ratio of errors to total bits
 end
 
+function [y_tx_noise ,SNR_lin ,N0 , AWGN_scaled] = AddAWGN(y_tx, Eb, SNR_db)
+    % AddAWGN - Add Additive White Gaussian Noise (AWGN) to a transmitted signal
+    % 
+    % Inputs:
+    %   y_tx       - Transmitted signal (1xN array)
+    %   Eb         - Energy per bit (scalar)
+    %   SNR_db     - Signal-to-Noise Ratio in dB (scalar)
+    %
+    % Output:
+    %   y_tx_noise - Noisy received signal (1xN array)
+    
+    % Length of transmitted signal
+    N_tx = length(y_tx);
+
+    % Generate unity variance, zero mean white Gaussian noise
+    AWGN = randn(1, N_tx);  % Generate noise with the same length as y_tx
+
+    % Calculate the noise power spectral density based on Eb and SNR
+    SNR_lin = 10^(SNR_db/10.0);  % Convert SNR from dB to linear scale
+    N0 = Eb / SNR_lin;           % Calculate noise power (N0)
+    
+    % Scale the noise to have variance N0/2
+    AWGN_scaled = sqrt(N0 / 2) * AWGN;
+
+    % Add the noise to the transmitted signal
+    y_tx_noise = y_tx + AWGN_scaled;  % Noisy received signal
+end
+
+function [BER_matched, BER_hold, theoretical_BER] = ...
+    BER_vs_SNR(y_tx, Eb, p_matched, hold_filter, ...
+    samples_per_bit, bits_Num, bit_stream_symbols, A, Eb_N0_dB)
+    % BER_VS_SNR - Calculate and plot the Bit Error Rate (BER) vs Eb/N0 for different filters
+    %
+    % Inputs:
+    %   y_tx             - Transmitted signal (1xN array)
+    %   Eb               - Energy per bit (scalar)
+    %   p_matched        - Matched filter (1xN array)
+    %   hold_filter      - Hold filter (1xN array)
+    %   samples_per_bit  - Number of samples per bit (scalar)
+    %   bits_Num         - Number of bits (scalar)
+    %   bit_stream_symbols - Transmitted bit stream symbols (1xN array)
+    %   A                - The amplitude used for the symbols (+A or -A)
+    %   Eb_N0_dB         - Range of Eb/N0 in dB
+    
+    % Initialize BER arrays for matched filter, hold filter, and theoretical BER
+    BER_matched = zeros(size(Eb_N0_dB));  
+    BER_hold = zeros(size(Eb_N0_dB));  
+    theoretical_BER = zeros(size(Eb_N0_dB));  
+    
+    % Loop over all Eb/N0 values
+    for i = 1:length(Eb_N0_dB)
+        % Add noise to the transmitted signal
+        [y_tx_noise, SNR_lin, N0, AWGN_scaled] = AddAWGN(y_tx, Eb, Eb_N0_dB(i));
+        
+        % Convolve the noisy signal with the matched filter
+        y_matched = conv(y_tx_noise, p_matched); 
+        
+        % Convolve the noisy signal with the hold filter
+        y_hold = conv(y_tx_noise, hold_filter); 
+        
+        % Sample the matched filter and hold filter outputs
+        [y_filtered_sampled, ~] = plot_matched_vs_hold(1, y_matched, y_hold, samples_per_bit, bits_Num);
+        
+        % Calculate the BER for matched filter output
+        polar_threshold = 0;
+        [BER_matched(i), ~] = calculate_error_probability(bit_stream_symbols, y_filtered_sampled, polar_threshold, A);
+        
+        % Calculate the BER for hold filter output
+        [BER_hold(i), ~] = calculate_error_probability(bit_stream_symbols, y_hold, polar_threshold, A);
+        
+        % Calculate theoretical BER
+        theoretical_BER(i) = 0.5 * erfc(sqrt(SNR_lin));  % Theoretical BER formula
+    end
+    
+    % Plot BER vs Eb/N0
+    figure;
+    plot(Eb_N0_dB, BER_matched, 'b-o', 'LineWidth', 2); % Matched filter
+    hold on;
+    plot(Eb_N0_dB, BER_hold, 'r-x', 'LineWidth', 2); % Hold filter
+    plot(Eb_N0_dB, theoretical_BER, 'k--', 'LineWidth', 2); % Theoretical BER
+    hold off;
+    
+    % Set plot labels and title
+    xlabel('Eb/N0 (dB)');
+    ylabel('Bit Error Rate (BER)');
+    title('BER vs Eb/N0 with Matched Filter and Hold Filter');
+    legend('Matched Filter', 'Hold Filter', 'Theoretical BER');
+    grid on;
+end
