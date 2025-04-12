@@ -28,7 +28,7 @@ bits = randi([0 1], 1, bits_Num);
 
 % Define the time vector from 0 to (Samples_Num-1)*Ts seconds
 t = 0:Ts/samples_per_bit:Ts/samples_per_bit*(Samples_Num-1);
-[~, bit_stream, ~] = generate_Impulse_linecodes(bits, A, samples_per_bit);
+[~, bit_stream, ~,~,bit_stream_symbols] = generate_Impulse_linecodes(bits, A, samples_per_bit);
 
 %plot the bit straem
 plot_linecode(t, bit_stream, 'Polar NRZ bit stream');
@@ -51,11 +51,12 @@ y_hold = conv(y_tx, hold_filter);
 y_corr = correlate_RX(y_tx, p, samples_per_bit);
 
 %plot the matched and hold ouptut vs time
-plot_matched_vs_hold(Ts, y_matched, y_hold, samples_per_bit, bits_Num)
+[y_filtered_sampled ,y_corr_sampled] = plot_matched_vs_hold(Ts, y_matched, y_hold, samples_per_bit, bits_Num);
 
 %plot the matched and correlator ouptut vs time
-plot_matched_vs_correlator(Ts, y_matched, y_tx, p, samples_per_bit, bits_Num);
+[~ ,y_hold_sampled] = plot_matched_vs_correlator(Ts, y_matched, y_tx, p, samples_per_bit, bits_Num);
 
+plot_all_outputs_vs_input(Ts, bit_stream_symbols, y_filtered_sampled, y_corr_sampled, y_hold_sampled);
 
 
 %-----------------------Functions----------------------------
@@ -103,7 +104,7 @@ function plot_pulse_shape(p, Ts, plot_title)
     grid on;
 end
 
-function [Unipolar, PolarNRZ, PolarRZ] = generate_Impulse_linecodes(Data, A, samples_per_bit)
+function [Unipolar, PolarNRZ, PolarRZ, unipolar_symbols, polar_symbols] = generate_Impulse_linecodes(Data, A, samples_per_bit)
 % GENERATE_LINECODES Generates Unipolar, Polar NRZ, and Polar RZ waveforms.
 %
 % Inputs:
@@ -142,7 +143,7 @@ function plot_linecode(t, linecode, plot_title)
 
     % Plot the signal
     figure;
-    stairs(t, linecode, 'LineWidth', 2);
+    stem(t, linecode, 'LineWidth', 2);
     title(plot_title);
     xlabel('Time (s)');
     ylabel('Amplitude');
@@ -187,7 +188,7 @@ function plot_pam_waveform(Ts, y_tx, plot_title)
     yline(0, 'k', 'LineWidth', 1.5);  % 'k' is for a black line
 end
 
-function plot_RX_waveform(Ts, y_rx,shift_delay, samples_per_bit, bits_Num, plot_title, color)
+function [sampled_values] = plot_RX_waveform(Ts, y_rx,shift_delay, samples_per_bit, bits_Num, plot_title, color)
     % PLOT_RX_WAVEFORM Plots the received waveform (after filtering) vs time vector t and adds a zero amplitude line.
     %
     % Inputs:
@@ -256,60 +257,77 @@ function plot_RX_waveform(Ts, y_rx,shift_delay, samples_per_bit, bits_Num, plot_
     xticklabels(0:length(xticks)-1);    % Label ticks as 0, 1, 2, 3, ...
     
     % Set the x-axis limits as [0, (N-samples_per_bit+1)/10]
-    xlim([0 2*(N - samples_per_bit )/bits_Num]);
+    xlim([0 ceil(2*(N - samples_per_bit )/bits_Num)]);
     
     % Add the legend with the custom line objects
     legend([h1, h2], 'Matched Filter Output', 'Sampled Output', 'Location', 'best', 'Box', 'on');
     
     hold off;
 
+    % Output: Return only the non-zero sampled values, skip first (padding), ensure row vector
+    sampled_values = y_rx_z(sample_indices(2:end));
+    sampled_values = sampled_values(:).';  % Force row vector
 end
 
 function y_correlated = correlate_RX(y, p, Ts)
-% CORRELATE_RX Performs correlation using integrate-and-dump method
-% 
+% CORRELATE_RX Performs correlation using running integration over each symbol period.
+%
 % Inputs:
 %   y   - Received signal (vector)
-%   p   - Pulse shape (vector), length must equal Ts
-%   Ts  - Number of samples per symbol (samples per bit)
+%   p   - Pulse shape (vector), must have length Ts
+%   Ts  - Samples per symbol
 %
 % Output:
-%   y_correlated - Correlated output per symbol
+%   y_correlated - Correlated output (same length as input, running integration within each symbol)
 
-    % Ensure p is the same size as Ts
+    % Validate pulse shape length
     if length(p) ~= Ts
         error('Length of pulse shape p must equal Ts (samples per symbol).');
     end
 
-    % Pointwise multiply received signal by the pulse shape
-    y_matched = y .* repmat(p, 1, ceil(length(y)/Ts));
-    y_matched = y_matched(1:length(y));  % Trim any extra points from padding
+    % Repeat the pulse shape to match the input signal length
+    p_repeated = repmat(p(:), ceil(length(y)/Ts), 1);
+    p_repeated = p_repeated(1:length(y));
 
-    % Use built-in intdump for integrate-and-dump
-    y_correlated = intdump(y_matched, Ts);  % returns one value per symbol
-    
-    % Upsample the correlated result to original length (for plotting, etc.)
-    y_correlated = upsample(y_correlated, Ts);  % Insert Ts-1 zeros between samples
+    % Weighted input
+    y_weighted = y(:) .* p_repeated;
+
+    % Initialize the output
+    y_correlated = zeros(size(y_weighted));
+
+    % Process full symbol periods
+    full_symbols = floor(length(y) / Ts);
+    for i = 1:full_symbols
+        idx_start = (i-1)*Ts + 1;
+        idx_end = i*Ts;
+        y_correlated(idx_start:idx_end) = cumsum(y_weighted(idx_start:idx_end));
+    end
+
+    % Handle remaining samples if any
+    if mod(length(y), Ts) ~= 0
+        idx_start = full_symbols*Ts + 1;
+        y_correlated(idx_start:end) = cumsum(y_weighted(idx_start:end));
+    end
 end
 
 function y_shifted = shift_right_zero(y, shift_amt)
 %SHIFT_RIGHT_ZERO Right-shifts the array by 'shift_amt' and fills with zeros at the beginning
 %
 % Inputs:
-%   y          - Input vector
+%   y          - Input vector (row or column)
 %   shift_amt  - Number of positions to shift
 %
 % Output:
-%   y_shifted  - Shifted vector with zero-padding
+%   y_shifted  - Shifted vector with zero-padding (same orientation as y)
 
-    if shift_amt >= length(y)
-        y_shifted = [zeros(1, shift_amt), y];  % Shift exceeds length: just prepend all zeros
+    if isrow(y)
+        y_shifted = [zeros(1, shift_amt), y];  % Concatenate as row
     else
-        y_shifted = [zeros(1, shift_amt), y(1:end)];
+        y_shifted = [zeros(shift_amt, 1); y];  % Concatenate as column
     end
 end
 
-function plot_matched_vs_correlator(Ts, y_filtered, y_tx, p, samples_per_bit, bits_Num)
+function [y_filtered_sampled ,y_corr_smapled] = plot_matched_vs_correlator(Ts, y_filtered, y_tx, p, samples_per_bit, bits_Num)
     % PLOT_MATCHED_AND_CORRELATOR Create a figure with two subplots: 
     % one for the matched filter output and one for the correlator output.
     %
@@ -326,16 +344,16 @@ function plot_matched_vs_correlator(Ts, y_filtered, y_tx, p, samples_per_bit, bi
     
     % Create the first subplot (Matched Filter Output)
     subplot(2, 1, 1);  % Two rows, one column, first subplot
-    plot_RX_waveform(Ts, y_filtered, 1, samples_per_bit, bits_Num, "The receiver output due to matched filter", 'g');
+    y_filtered_sampled = plot_RX_waveform(Ts, y_filtered, 1, samples_per_bit, bits_Num, "The receiver output due to matched filter", 'g');
 
     % Create the second subplot (Correlator Output)
     subplot(2, 1, 2);  % Two rows, one column, second subplot
     y_corr = correlate_RX(y_tx, p, samples_per_bit);  % Get the correlated signal
-    plot_RX_waveform(Ts, y_corr, 0, samples_per_bit, bits_Num, "The correlator Output", 'b');
+    y_corr_smapled = plot_RX_waveform(Ts, y_corr, 1, samples_per_bit, bits_Num, "The correlator Output", 'b');
 
 end
 
-function plot_matched_vs_hold(Ts, y_matched, y_hold, samples_per_bit, bits_Num)
+function [y_matched_smapled ,y_hold_sampled] = plot_matched_vs_hold(Ts, y_matched, y_hold, samples_per_bit, bits_Num)
     % PLOT_MATCHED_AND_CORRELATOR Create a figure with two subplots: 
     % one for the matched filter output and one for the correlator output.
     %
@@ -352,11 +370,11 @@ function plot_matched_vs_hold(Ts, y_matched, y_hold, samples_per_bit, bits_Num)
     
     % Create the first subplot (Matched Filter Output)
     subplot(2, 1, 1);  % Two rows, one column, first subplot
-    plot_RX_waveform(Ts, y_matched, 1, samples_per_bit, bits_Num, "The receiver output due to matched filter", 'c');
-
+    y_matched_smapled = plot_RX_waveform(Ts, y_matched, 1, samples_per_bit, bits_Num, "The receiver output due to matched filter", 'c');
+ 
     % Create the second subplot (Correlator Output)
     subplot(2, 1, 2);  % Two rows, one column, second subplot
-    plot_RX_waveform(Ts, y_hold, 0, samples_per_bit, bits_Num, "The receiver output due to hold filter", 'm');
+    y_hold_sampled = plot_RX_waveform(Ts, y_hold, 1, samples_per_bit, bits_Num, "The receiver output due to hold filter", 'm');
 
 end
 
@@ -379,4 +397,63 @@ function hold_filter = make_hold_filter(Ts, N, A)
     hold_filter = A * ones(size(t)) / sqrt(Ts*N);  % Amplitude scaled 
 end
 
+function plot_all_outputs_vs_input(Ts, message, y_filtered_sampled, y_corr_sampled, y_hold_sampled)
+    % PLOT_ALL_OUTPUTS_VS_INPUT
+    %   Plots the original bit stream and the receiver sampled outputs in 1x4 subplots.
+    %
+    % Inputs:
+    %   Ts                  - Symbol duration (in seconds)
+    %   message             - Original input bit stream (1×N)
+    %   y_filtered_sampled  - Output of matched filter sampled (1×N)
+    %   y_corr_sampled      - Output of correlator sampled (1×N)
+    %   y_hold_sampled      - Output of hold circuit sampled (1×N)
 
+    % Validate input lengths
+    N = length(message);
+    if ~isequal(length(y_filtered_sampled), N) || ...
+       ~isequal(length(y_corr_sampled), N) || ...
+       ~isequal(length(y_hold_sampled), N)
+        error('All input vectors must be the same length as the message.');
+    end
+
+    % Time vector
+    t = 0:Ts:(N-1)*Ts;
+
+    figure;
+
+    % --- Subplot 1: Original message ---
+    subplot(4, 1, 1);
+    stem(t, message, 'k', 'filled', 'LineWidth', 1.5);
+    title('Input Message');
+    xlabel('Time (s)');
+    ylabel('Amplitude');
+    grid on;
+    xlim([0 t(end)]);
+
+    % --- Subplot 2: Matched Filter Output (Impulse representation) ---
+    subplot(4, 1, 2);
+    stem(t, y_filtered_sampled, 'b', 'filled', 'LineWidth', 2);
+    title('Matched Filter Output');
+    xlabel('Time (s)');
+    ylabel('Amplitude');
+    grid on;
+    xlim([0 t(end)]);
+
+    % --- Subplot 3: Correlator Output (Impulse representation) ---
+    subplot(4, 1, 3);
+    stem(t, y_corr_sampled, 'r', 'filled', 'LineWidth', 2);
+    title('Correlator Output');
+    xlabel('Time (s)');
+    ylabel('Amplitude');
+    grid on;
+    xlim([0 t(end)]);
+
+    % --- Subplot 4: Hold Output (Impulse representation) ---
+    subplot(4, 1, 4);
+    stem(t, y_hold_sampled, 'g', 'filled', 'LineWidth', 2);
+    title('Hold Output');
+    xlabel('Time (s)');
+    ylabel('Amplitude');
+    grid on;
+    xlim([0 t(end)]);
+end
