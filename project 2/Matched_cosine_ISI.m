@@ -38,7 +38,7 @@ t = 0:Ts/samples_per_bit:(Samples_Num-1)*Ts/samples_per_bit; % Adjusted time vec
 plot_linecode(t, bit_stream, 'Polar NRZ bit stream');
 
 %-----------------------Requiernment 1----------------------------
-%{
+
 % Generate the PAM waveform
 y_tx =  generate_pam_waveform(bit_stream, p);
 
@@ -62,7 +62,7 @@ y_corr = correlate_RX(y_tx, p, samples_per_bit);
 
 % plot the Tx input vs All Rx output
 plot_all_outputs_vs_input(Ts, bit_stream_symbols, y_filtered_sampled, y_corr_sampled, y_hold_sampled);
-%}
+
 
 %-----------------------Requiernment 2----------------------------
 
@@ -100,10 +100,10 @@ y_hold = conv(y_tx_noise, hold_filter);
 y_corr = correlate_RX(y_tx_noise, p, samples_per_bit);
 
 % plot the matched and hold ouptut vs time
-[y_filtered_sampled ,y_corr_sampled] = plot_matched_vs_hold(Ts, y_matched, y_hold, samples_per_bit, bits_Num);
+[y_filtered_sampled ,y_hold_sampled] = plot_matched_vs_hold(Ts, y_matched, y_hold, samples_per_bit, bits_Num);
 
 % plot the matched and correlator ouptut vs time
-[~ ,y_hold_sampled] = plot_matched_vs_correlator(Ts, y_matched, y_tx_noise, p, samples_per_bit, bits_Num);
+[~ ,y_corr_sampled] = plot_matched_vs_correlator(Ts, y_matched, y_tx_noise, p, samples_per_bit, bits_Num);
 
 % plot the Tx input vs All Rx output
 plot_all_outputs_vs_input(Ts, bit_stream_symbols, y_filtered_sampled, y_corr_sampled, y_hold_sampled);
@@ -124,9 +124,13 @@ disp(['Theoretical BER: ', num2str(theoretical_BER)]);
 
 SNR_db  = -2:1:5;                % SNR given in dB from -2 dB to 5 dB in 1 dB steps
 
+% BER from matched vs hold
 [BER_matched, BER_hold, theoretical_BER] = ...
     BER_vs_SNR(y_tx, Eb, p_matched, hold_filter, ...
-    samples_per_bit, bits_Num, bit_stream_symbols, A, SNR_db)
+    samples_per_bit, bits_Num, bit_stream_symbols, A, SNR_db);
+
+% plot them
+plot_BER_vs_EbN0(SNR_db, BER_matched, BER_hold, theoretical_BER);
 
 %-----------------------Functions----------------------------
 
@@ -447,11 +451,13 @@ function [y_matched_smapled ,y_hold_sampled] = ...
     % Create the first subplot (Matched Filter Output)
     subplot(2, 1, 1);  % Two rows, one column, first subplot
     y_matched_smapled = plot_RX_waveform(Ts, y_matched, 1, samples_per_bit, bits_Num, "The receiver output due to matched filter", 'c');
- 
+    pause(3);
+    
     % Create the second subplot (Correlator Output)
     subplot(2, 1, 2);  % Two rows, one column, second subplot
     y_hold_sampled = plot_RX_waveform(Ts, y_hold, 1, samples_per_bit, bits_Num, "The receiver output due to hold filter", 'm');
-
+    pause(3);
+    
 end
 
 function hold_filter = make_hold_filter(Ts, N, A)
@@ -620,31 +626,49 @@ function [BER_matched, BER_hold, theoretical_BER] = ...
         y_hold = conv(y_tx_noise, hold_filter); 
         
         % Sample the matched filter and hold filter outputs
-        [y_filtered_sampled, ~] = plot_matched_vs_hold(1, y_matched, y_hold, samples_per_bit, bits_Num);
+        [y_filtered_sampled, y_hold_sampled] = plot_matched_vs_hold(1, y_matched, y_hold, samples_per_bit, bits_Num);
         
         % Calculate the BER for matched filter output
         polar_threshold = 0;
         [BER_matched(i), ~] = calculate_error_probability(bit_stream_symbols, y_filtered_sampled, polar_threshold, A);
         
         % Calculate the BER for hold filter output
-        [BER_hold(i), ~] = calculate_error_probability(bit_stream_symbols, y_hold, polar_threshold, A);
+        [BER_hold(i), ~] = calculate_error_probability(bit_stream_symbols, y_hold_sampled, polar_threshold, A);
         
         % Calculate theoretical BER
         theoretical_BER(i) = 0.5 * erfc(sqrt(SNR_lin));  % Theoretical BER formula
     end
     
-    % Plot BER vs Eb/N0
+   
+end
+
+function plot_BER_vs_EbN0(Eb_N0_dB, BER_matched, BER_hold, theoretical_BER)
+    % plot_BER_vs_EbN0 - Plot the Bit Error Rate (BER) vs Eb/N0 for different filters
+    %
+    % Inputs:
+    %   Eb_N0_dB       - Eb/N0 values in dB (vector)
+    %   BER_matched    - BER for the matched filter (vector)
+    %   BER_hold       - BER for the hold filter (vector)
+    %   theoretical_BER - Theoretical BER (vector)
+    
+    % Create figure for the plot
     figure;
-    plot(Eb_N0_dB, BER_matched, 'b-o', 'LineWidth', 2); % Matched filter
+    
+    % Plot BER vs Eb/N0 on a semi-logarithmic scale (log scale on y-axis)
+    semilogy(Eb_N0_dB, BER_matched, 'b-o', 'LineWidth', 2); % Matched filter
     hold on;
-    plot(Eb_N0_dB, BER_hold, 'r-x', 'LineWidth', 2); % Hold filter
-    plot(Eb_N0_dB, theoretical_BER, 'k--', 'LineWidth', 2); % Theoretical BER
+    semilogy(Eb_N0_dB, BER_hold, 'r-x', 'LineWidth', 2); % Hold filter
+    semilogy(Eb_N0_dB, theoretical_BER, 'k--', 'LineWidth', 2); % Theoretical BER
     hold off;
     
-    % Set plot labels and title
+    % Set the labels and title
     xlabel('Eb/N0 (dB)');
     ylabel('Bit Error Rate (BER)');
     title('BER vs Eb/N0 with Matched Filter and Hold Filter');
+    
+    % Add legend to identify each curve
     legend('Matched Filter', 'Hold Filter', 'Theoretical BER');
+    
+    % Enable grid for better visibility
     grid on;
 end
