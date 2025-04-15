@@ -401,14 +401,14 @@ function plot_autocorrelation(Unipolar_AutoCorr, PolarNRZ_AutoCorr, PolarRZ_Auto
     % -------- Theoretical Expressions -------- %
 
     % Unipolar NRZ
-    Rx_Unipolar = (tau < Tb) .* ((A^2 / 2) .* (1 - ( tau / (2*Tb)))) + ...
-                  (tau >= Tb) .* (A^2 / 4);
+    Rx_Unipolar = (tau < Tb) .* (A^2 .* (1 - (tau / Tb)));
 
     % Polar NRZ
-    Rx_PolarNRZ = (tau < Tb) .* (A^2 .* (1 - (tau / Tb)));
+    Rx_PolarNRZ = (tau < Tb) .* ((A^2 / 2) .* (1 - (2 * tau / Tb))) + ...
+                  (tau >= Tb) .* (A^2 / 4);
 
     % Polar RZ
-    Rx_PolarRZ = (tau < Tb/2) .* ((4/7) * A^2 .* (1 - (8 * tau ./ (7 * Tb))));
+    Rx_PolarRZ = (tau < Tb) .* ((4/7) * A^2 .* (1 - (4 * tau ./ (7 * Tb))));
 
     % -------- Plotting -------- %
 
