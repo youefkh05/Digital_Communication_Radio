@@ -128,10 +128,8 @@ plot_combined_autocorrelation(R_unipolar_t, R_polar_nrz_t, R_polar_rz_t, ...
 Ts=bit_duration/samples_per_bit;% Sampling Time
 fs = 1/Ts;                      % Sampling Frequency
 
-plot_linecode_psd(R_avg_unipolar, R_avg_polar_nrz, R_avg_polar_rz, fs);
-
-[BW_unipolar, BW_polarNRZ, BW_polarRZ] = ...
-    estimate_all_bandwidths(R_unipolar_t, R_polar_nrz_t, R_polar_rz_t, fs);
+[PSD_unipolar ,PSD_polarNRZ ,PSD_polarRZ] =...
+    plot_linecode_psd(R_avg_unipolar, R_avg_polar_nrz, R_avg_polar_rz, fs, A, bit_duration);
 
 
 %-----------------------Functions----------------------------
@@ -924,15 +922,18 @@ function plot_combined_autocorrelation(R_unipolar, R_polarNRZ, R_polarRZ, ...
 
 end
 
-function plot_linecode_psd(R_Unipolar, R_PolarNRZ, R_PolarRZ, fs)
+function [PSD_unipolar ,PSD_polarNRZ ,PSD_polarRZ] =...
+    plot_linecode_psd(R_Unipolar, R_PolarNRZ, R_PolarRZ, fs, A, Tb)
     % Function to plot PSDs for Unipolar NRZ, Polar NRZ, and Polar RZ line codes
-    % using FFT of average autocorrelation sequences.
+    % using FFT of average autocorrelation sequences and compare with theoretical PSDs.
     %
     % Inputs:
     %   R_Unipolar   - Average autocorrelation of Unipolar NRZ
     %   R_PolarNRZ   - Average autocorrelation of Polar NRZ
     %   R_PolarRZ    - Average autocorrelation of Polar RZ
     %   fs           - Sampling frequency in Hz
+    %   A            - Amplitude of the signal
+    %   Tb           - Bit period (duration of one bit)
 
     % Ensure all inputs are column vectors
     R_Unipolar = R_Unipolar(:);
@@ -962,139 +963,65 @@ function plot_linecode_psd(R_Unipolar, R_PolarNRZ, R_PolarRZ, fs)
     freq_axis = (-n/2 : n/2 - 1) * (fs / n);
 
     % Center the FFTs for proper plotting
-    PSD_unipolar = fftshift(PSD_unipolar);
-    PSD_polarNRZ = fftshift(PSD_polarNRZ);
-    PSD_polarRZ  = fftshift(PSD_polarRZ);
+    PSD_unipolar = A*fftshift(PSD_unipolar);
+    PSD_polarNRZ = A*fftshift(PSD_polarNRZ);
+    PSD_polarRZ  = A*fftshift(PSD_polarRZ);
+
+    % Compute theoretical PSDs
+    S_unipolar_nrz = (A^2 * Tb / 4) * (sin(pi * freq_axis * Tb) ./ (pi * freq_axis * Tb)).^2;
+    S_polar_nrz = (A^2 * Tb / 2) * (sin(pi * freq_axis * Tb / 2) ./ (pi * freq_axis * Tb / 2)).^2;
+    S_polar_rz = (A^2 * Tb / 4) * (sin(pi * freq_axis * Tb / 4) ./ (pi * freq_axis * Tb / 4)).^2;
+
+    % Handle zero frequency case (Dirac delta at f = 0)
+    S_unipolar_nrz(freq_axis == 0) = A^2 / 4;
+    S_polar_nrz(freq_axis == 0) = 0;  % No delta for Polar NRZ
+    S_polar_rz(freq_axis == 0) = 0;  % No delta for Polar RZ
 
     % Plot PSDs
     figure('Name', 'Power Spectral Density via Average Autocorrelation');
 
+    % Plot Unipolar NRZ
     subplot(3,1,1);
     plot(freq_axis, PSD_unipolar, 'b', 'LineWidth', 1.5);
     hold on;
-    stem(0, mu_uni, 'k', 'LineWidth', 1.5);  % Add DC pulse
+    plot(freq_axis, S_unipolar_nrz, 'r--', 'LineWidth', 1.5);  % Theoretical PSD
     hold off;
     grid on;
     xlabel('Frequency (Hz)');
     ylabel('Magnitude');
     title('PSD of Unipolar NRZ');
     xlim([-fs/2, fs/2]);
-    ylim([0, PSD_unipolar(center_idx)/2]);
-    legend('PSD (No DC)', 'DC Pulse (\mu^2)');
-
-
+    ylim([0, max(PSD_unipolar)*1.1]);
+    legend('Empirical', 'Theoretical');
+    
+    % Plot Polar NRZ
     subplot(3,1,2);
     plot(freq_axis, PSD_polarNRZ, 'r', 'LineWidth', 1.5);
+    hold on;
+    plot(freq_axis, S_polar_nrz, 'g--', 'LineWidth', 1.5);  % Theoretical PSD
+    hold off;
     grid on;
     xlabel('Frequency (Hz)');
     ylabel('Magnitude');
     title('PSD of Polar NRZ');
     xlim([-fs/2, fs/2]);
-    ylim([0 max(PSD_polarNRZ)*1.1]);
-
+    ylim([0, max(PSD_polarNRZ)*1.1]);
+    legend('Empirical', 'Theoretical');
+    
+    % Plot Polar RZ
     subplot(3,1,3);
     plot(freq_axis, PSD_polarRZ, 'g', 'LineWidth', 1.5);
+    hold on;
+    plot(freq_axis, S_polar_rz, 'b--', 'LineWidth', 1.5);  % Theoretical PSD
+    hold off;
     grid on;
     xlabel('Frequency (Hz)');
     ylabel('Magnitude');
     title('PSD of Polar RZ');
     xlim([-fs/2, fs/2]);
-    ylim([0 max(PSD_polarRZ)*1.1]);
+    ylim([0, max(PSD_polarRZ)*1.1]);
+    legend('Empirical', 'Theoretical');
 end
-
-function [BW_unipolar, BW_polarNRZ, BW_polarRZ] = ...
-    estimate_all_bandwidths(R_unipolar_nrz, R_polar_nrz, R_polar_rz, fs)
-    % Function to estimate the bandwidth for Unipolar NRZ, Polar NRZ, and Polar RZ
-    % using FFT and power spectral density (PSD) method.
-    
-    % Extract the first realization
-    R_unipolar_nrz = R_unipolar_nrz(:,1);
-    R_polar_nrz = R_polar_nrz(:,1);
-    R_polar_rz = R_polar_rz(:,1);
-
-    % Number of samples (adjust dynamically)
-    n = length(R_unipolar_nrz);
-
-    % Compute FFT coefficients
-    unipolar_nrz_coe = fft(R_unipolar_nrz) / n;
-    polar_nrz_coe = fft(R_polar_nrz) / n;
-    polar_rz_coe = fft(R_polar_rz) / n;
-
-    % Compute magnitude of FFT (PSD estimation)
-    amplitude_unipolar_nrz = abs(unipolar_nrz_coe);
-    amplitude_polar_nrz = abs(polar_nrz_coe);
-    amplitude_polar_rz = abs(polar_rz_coe);
-
-    % Frequency axis mapping (centered around 0)
-    freq_axis = (-n/2:n/2-1) * (fs / n);  % Corrected frequency scaling
-
-    % Shift FFT for centered display
-    amp_unipolar_nrz = fftshift(amplitude_unipolar_nrz);
-    amp_polar_nrz = fftshift(amplitude_polar_nrz);
-    amp_polar_rz = fftshift(amplitude_polar_rz);
-
-    % Estimate bandwidths using -3dB method
-    BW_unipolar = find_bandwidth(amp_unipolar_nrz, freq_axis);
-    BW_polarNRZ = find_bandwidth(amp_polar_nrz, freq_axis);
-    BW_polarRZ = find_bandwidth(amp_polar_rz, freq_axis);
-    
-    %{
-    % Display Bandwidth Values
-    disp(['BW Unipolar NRZ: ', num2str(BW_unipolar), ' Hz']);
-    disp(['BW Polar NRZ: ', num2str(BW_polarNRZ), ' Hz']);
-    disp(['BW Polar RZ: ', num2str(BW_polarRZ), ' Hz']);
-    %}
-    
-    % Plot PSDs
-    figure('Name', 'Power Spectral Density');
-
-    subplot(3,1,1);
-    plot(freq_axis, amp_unipolar_nrz, 'g');
-    ylim([0 max(amp_unipolar_nrz)*1.1]); xlim([-fs/2 fs/2]);
-    grid on;
-    xlabel('Frequency (Hz)');
-    ylabel('Magnitude');
-    title('PSD of Unipolar NRZ');
-
-    subplot(3,1,2);
-    plot(freq_axis, amp_polar_nrz, 'b');
-    ylim([0 max(amp_polar_nrz)*1.1]); xlim([-fs/2 fs/2]);
-    grid on;
-    xlabel('Frequency (Hz)');
-    ylabel('Magnitude');
-    title('PSD of Polar NRZ');
-
-    subplot(3,1,3);
-    plot(freq_axis, amp_polar_rz, 'r');
-    ylim([0 max(amp_polar_rz)*1.1]); xlim([-fs/2 fs/2]);
-    grid on;
-    xlabel('Frequency (Hz)');
-    ylabel('Magnitude');
-    title('PSD of Polar RZ');
-end
-
-function BW = find_bandwidth(PSD, freq_axis)
-    % Function to find the -3dB bandwidth from PSD
-    PSD_max = max(PSD);       % Find max power
-    threshold = PSD_max / 2;  % -3dB threshold (half power)
-
-    % Find indices where PSD is above threshold
-    valid_indices = find(PSD >= threshold);
-    
-    % Check if we found any valid points
-    if isempty(valid_indices)
-        BW = 0; % If no valid range is found, return 0
-        return;
-    end
-    % Ensure indices are within valid bounds
-    min_index = max(1, min(valid_indices));  % Ensure it's at least 1
-    max_index = min(length(freq_axis), max(valid_indices));  % Ensure it's within bounds
-
-    % Compute bandwidth as the difference between first and last crossing points
-    BW = abs(freq_axis(max_index) - freq_axis(min_index));
-end
-
-
 
 
 
