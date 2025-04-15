@@ -84,10 +84,10 @@ plot_autocorrelation(Unipolar_AutoCorr, PolarNRZ_AutoCorr, PolarRZ_AutoCorr, max
 
 % Compute time autocorrelation
 [R_unipolar_nrz_t, R_polar_nrz_t, R_polar_rz_t, taw] =...
-    compute_time_autocorr(Unipolar_Shifted, PolarNRZ_Shifted, PolarRZ_Shifted);
+    compute_time_autocorr(Unipolar_Shifted, PolarNRZ_Shifted, PolarRZ_Shifted, 0);
 
 % Plot the time autocorrelation
-plot_time_autocorrelation(R_unipolar_nrz_t, R_polar_nrz_t, R_polar_rz_t, taw, max_lag);
+plot_time_شautocorrelation(R_unipolar_nrz_t, R_polar_nrz_t, R_polar_rz_t, taw, max_lag);
 
 % Compute time mean for each line code
 Unipolar_TimeMean = compute_time_mean(Unipolar_Shifted);
@@ -401,14 +401,14 @@ function plot_autocorrelation(Unipolar_AutoCorr, PolarNRZ_AutoCorr, PolarRZ_Auto
     % -------- Theoretical Expressions -------- %
 
     % Unipolar NRZ
-    Rx_Unipolar = (tau < Tb) .* (A^2 .* (1 - (tau / Tb)));
-
-    % Polar NRZ
-    Rx_PolarNRZ = (tau < Tb) .* ((A^2 / 2) .* (1 - (2 * tau / Tb))) + ...
+    Rx_Unipolar = (tau < Tb) .* ((A^2 / 2) .* (1 - ( tau / (2*Tb)))) + ...
                   (tau >= Tb) .* (A^2 / 4);
 
+    % Polar NRZ
+    Rx_PolarNRZ = (tau < Tb) .* (A^2 .* (1 - (tau / Tb)));
+
     % Polar RZ
-    Rx_PolarRZ = (tau < Tb) .* ((4/7) * A^2 .* (1 - (4 * tau ./ (7 * Tb))));
+    Rx_PolarRZ = (tau < Tb/2) .* ((4/7) * A^2 .* (1 - (8 * tau ./ (7 * Tb))));
 
     % -------- Plotting -------- %
 
@@ -539,52 +539,49 @@ function plot_time_mean_vs_realization(unipolar_mean, polarNRZ_mean, polarRZ_mea
     sgtitle('Time Mean vs Realization Index');
 end
 
-function [R_unipolar_nrz_t, R_polar_nrz_t, R_polar_rz_t, taw2] = ...
-    compute_time_autocorr(UnipolarNRZ, PolarNRZ, PolarRZ)
-    % Computes time autocorrelation for each realization separately.
+function [R_unipolar_nrz_t1, R_polar_nrz_t1, R_polar_rz_t1, tau_vec] = ...
+    compute_time_autocorr(UnipolarNRZ, PolarNRZ, PolarRZ, t1)
+    % Computes time autocorrelation R(t1, tau) at a fixed t1 for tau = 0:700
     %
     % Inputs:
-    %   UnipolarNRZ - Matrix containing all realizations for Unipolar NRZ
-    %   PolarNRZ - Matrix containing all realizations for Polar NRZ
-    %   PolarRZ - Matrix containing all realizations for Polar RZ
+    %   UnipolarNRZ, PolarNRZ, PolarRZ - Realizations (each row is a signal)
+    %   t1 - Time index to fix (must be positive and < num_samples)
     %
     % Outputs:
-    %   R_unipolar_nrz_t - Time autocorrelation for Unipolar NRZ (each row computed separately)
-    %   R_polar_nrz_t - Time autocorrelation for Polar NRZ (each row computed separately)
-    %   R_polar_rz_t - Time autocorrelation for Polar RZ (each row computed separately)
+    %   R_unipolar_nrz_t1, R_polar_nrz_t1, R_polar_rz_t1 - Autocorrelation vectors
+    %   tau_vec - Vector of lags (tau)
 
-    % Get number of realizations and samples
     [num_realizations, num_samples] = size(UnipolarNRZ);
+    max_tau = min(700, num_samples - t1);  % avoid index overflow
+    tau_vec = 0:max_tau;
 
-    % Define range of time lags
-    max_lag = num_samples - 1; % Maximum lag value
-    taw2 = -max_lag:max_lag; % Lag vector
+    % Preallocate
+    R_unipolar_nrz_t1 = zeros(1, length(tau_vec));
+    R_polar_nrz_t1 = zeros(1, length(tau_vec));
+    R_polar_rz_t1 = zeros(1, length(tau_vec));
 
-    % Initialize autocorrelation matrices (each row for a realization)
-    R_unipolar_nrz_t = zeros(num_realizations, length(taw2));
-    R_polar_nrz_t = zeros(num_realizations, length(taw2));
-    R_polar_rz_t = zeros(num_realizations, length(taw2));
+    for idx = 1:length(tau_vec)
+        tau = tau_vec(idx);
+        t2 = t1 + tau;
 
-    % Compute autocorrelation for each realization separately
-    for r = 1:num_realizations
-        for i = taw2
-            M = i + max_lag + 1; % Shift index to fit within array bounds
+        if t2 <= num_samples && t1 >= 1
+            % Compute element-wise products for all realizations at t1 and t1+tau
+            prod_unipolar = UnipolarNRZ(:, t1) .* UnipolarNRZ(:, t2);
+            prod_polar    = PolarNRZ(:, t1)    .* PolarNRZ(:, t2);
+            prod_rz       = PolarRZ(:, t1)     .* PolarRZ(:, t2);
 
-            % Compute sum for each lag (dot product of signal with shifted version)
-            if i >= 0
-                valid_samples = num_samples - i;
-                R_unipolar_nrz_t(r, M) = sum(UnipolarNRZ(r, 1:valid_samples) .* UnipolarNRZ(r, i+1:num_samples)) / valid_samples;
-                R_polar_nrz_t(r, M) = sum(PolarNRZ(r, 1:valid_samples) .* PolarNRZ(r, i+1:num_samples)) / valid_samples;
-                R_polar_rz_t(r, M) = sum(PolarRZ(r, 1:valid_samples) .* PolarRZ(r, i+1:num_samples)) / valid_samples;
-            else
-                valid_samples = num_samples + i;
-                R_unipolar_nrz_t(r, M) = sum(UnipolarNRZ(r, -i+1:num_samples) .* UnipolarNRZ(r, 1:valid_samples)) / valid_samples;
-                R_polar_nrz_t(r, M) = sum(PolarNRZ(r, -i+1:num_samples) .* PolarNRZ(r, 1:valid_samples)) / valid_samples;
-                R_polar_rz_t(r, M) = sum(PolarRZ(r, -i+1:num_samples) .* PolarRZ(r, 1:valid_samples)) / valid_samples;
-            end
+            % Use custom function to compute mean across realizations
+            R_unipolar_nrz_t1(idx) = sum(prod_unipolar) / num_realizations;
+            R_polar_nrz_t1(idx)    = sum(prod_polar)    / num_realizations;
+            R_polar_rz_t1(idx)     = sum(prod_rz)       / num_realizations;
+        else
+            R_unipolar_nrz_t1(idx) = NaN;
+            R_polar_nrz_t1(idx)    = NaN;
+            R_polar_rz_t1(idx)     = NaN;
         end
     end
 end
+
 
 function plot_time_autocorrelation(R_unipolar, R_polarNRZ, R_polarRZ, taw, max_lag)
     % Plots the time autocorrelation of the first realization for each waveform type.

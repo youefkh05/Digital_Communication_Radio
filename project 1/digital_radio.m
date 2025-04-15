@@ -75,19 +75,27 @@ plot_variance(t_shifted, Unipolar_Var, PolarNRZ_Var, PolarRZ_Var);
 % Determine max_lag dynamically
 max_lag = size(Unipolar_Shifted, 2) - 1;
 
-%calculate the autocorrelation (question 3)
+% calculate the autocorrelation (question 3)
 [Unipolar_AutoCorr, PolarNRZ_AutoCorr, PolarRZ_AutoCorr] = ...
        compute_stat_autocorr(Unipolar_Shifted, PolarNRZ_Shifted, PolarRZ_Shifted, max_lag);   
 
-%plot the autocorrelation
-plot_autocorrelation(Unipolar_AutoCorr, PolarNRZ_AutoCorr, PolarRZ_AutoCorr, max_lag, 100*bit_duration, A)
+% plot the autocorrelation
+plot_autocorrelation(Unipolar_AutoCorr, PolarNRZ_AutoCorr, PolarRZ_AutoCorr, max_lag, 100*bit_duration, A);
 
 % Compute time autocorrelation
-[R_unipolar_nrz_t, R_polar_nrz_t, R_polar_rz_t, taw] =...
-    compute_time_autocorr(Unipolar_Shifted, PolarNRZ_Shifted, PolarRZ_Shifted);
+t1=1;
+t2=8;
+[R_unipolar_t, R_polar_nrz_t, R_polar_rz_t, taw] =...
+    compute_time_autocorr(Unipolar_Shifted, PolarNRZ_Shifted, PolarRZ_Shifted, t1);
 
 % Plot the time autocorrelation
-plot_time_autocorrelation(R_unipolar_nrz_t, R_polar_nrz_t, R_polar_rz_t, taw, max_lag);
+plot_time_autocorrelation(R_unipolar_t, R_polar_nrz_t, R_polar_rz_t, taw, max_lag, 100*bit_duration, A);
+
+% Check for Staionary (question 2)
+[R_unipolar_t2, R_polar_nrz_t2, R_polar_rz_t2, taw2] =...
+    compute_time_autocorr(Unipolar_Shifted, PolarNRZ_Shifted, PolarRZ_Shifted, t2);
+
+plot_two_realizations(R_unipolar_t, R_unipolar_t2, taw, max_lag);
 
 % Compute time mean for each line code
 Unipolar_TimeMean = compute_time_mean(Unipolar_Shifted);
@@ -102,9 +110,28 @@ plot_realizations_with_mean(t_shifted, PolarRZ_TimeMean, PolarRZ_Shifted, 'Polar
 %Plot time mean vs realization
 plot_time_mean_vs_realization(Unipolar_TimeMean, PolarNRZ_TimeMean, PolarRZ_TimeMean, A);
 
-fs = 100; % Sampling frequency 
+% Check for ergodic (question 5)
+plot_mean_time_vs_statistical(t_shifted, ...
+                             Unipolar_Mean, PolarNRZ_Mean, PolarRZ_Mean, ...
+                             2, 0, 0, ...
+                             Unipolar_TimeMean, PolarNRZ_TimeMean, PolarRZ_TimeMean, A);
+
+plot_combined_autocorrelation(R_unipolar_t, R_polar_nrz_t, R_polar_rz_t, ...
+                                       taw, max_lag, 100*bit_duration, A, ...
+                                       Unipolar_AutoCorr, PolarNRZ_AutoCorr, PolarRZ_AutoCorr);                         
+
+% Plotting the PSD (Question 6)
+
+[R_avg_unipolar, R_avg_polar_nrz, R_avg_polar_rz, tau_full] = ...
+    get_Ravg(Unipolar_Shifted, PolarNRZ_Shifted, PolarRZ_Shifted, t1, t2);
+
+Ts=bit_duration/samples_per_bit;% Sampling Time
+fs = 1/Ts;                      % Sampling Frequency
+
+plot_linecode_psd(R_avg_unipolar, R_avg_polar_nrz, R_avg_polar_rz, fs);
+
 [BW_unipolar, BW_polarNRZ, BW_polarRZ] = ...
-    estimate_all_bandwidths(R_unipolar_nrz_t, R_polar_nrz_t, R_polar_rz_t, fs);
+    estimate_all_bandwidths(R_unipolar_t, R_polar_nrz_t, R_polar_rz_t, fs);
 
 
 %-----------------------Functions----------------------------
@@ -248,7 +275,7 @@ function plot_mean_waveforms(t, Unipolar_Mean, PolarNRZ_Mean, PolarRZ_Mean, ...
 % with their corresponding theoretical mean values
 %
 % Inputs:
-%   t                    - Time vector
+%   t                    - Time vector (ignored in favor of fixed [-700, 700] mapping)
 %   Unipolar_Mean        - Simulated mean waveform of Unipolar NRZ
 %   PolarNRZ_Mean        - Simulated mean waveform of Polar NRZ
 %   PolarRZ_Mean         - Simulated mean waveform of Polar RZ
@@ -257,42 +284,47 @@ function plot_mean_waveforms(t, Unipolar_Mean, PolarNRZ_Mean, PolarRZ_Mean, ...
 %   PolarRZ_Theoretical  - Theoretical mean value for Polar RZ
 %   A                    - Amplitude limit for y-axis
 
+    % Create new time vector from -700 to 700 ms based on length of input
+    t_ms = linspace(-700, 700, length(t));
+
     figure;
 
     % --- Unipolar NRZ ---
     subplot(3,1,1);
-    plot(t, Unipolar_Mean, 'r', 'LineWidth', 2); hold on;
-    yline(Unipolar_Theoretical, '--k', 'LineWidth', 1.5); % theoretical line
-    xlabel('Time (s)');
+    plot(t_ms, Unipolar_Mean, 'r', 'LineWidth', 2); hold on;
+    yline(Unipolar_Theoretical, '--k', 'LineWidth', 1.5);
+    xlabel('Time (ms)');
     ylabel('Amplitude');
     title('Mean of Unipolar NRZ');
     grid on;
     ylim([-A, A]);
+    xlim([-length(t)-1, length(t)+1]);
     legend('Simulated', 'Theoretical');
 
     % --- Polar NRZ ---
     subplot(3,1,2);
-    plot(t, PolarNRZ_Mean, 'g', 'LineWidth', 2); hold on;
+    plot(t_ms, PolarNRZ_Mean, 'g', 'LineWidth', 2); hold on;
     yline(PolarNRZ_Theoretical, '--k', 'LineWidth', 1.5);
-    xlabel('Time (s)');
+    xlabel('Time (ms)');
     ylabel('Amplitude');
     title('Mean of Polar NRZ');
     grid on;
     ylim([-A, A]);
+    xlim([-length(t)-1, length(t)+1]);
     legend('Simulated', 'Theoretical');
 
     % --- Polar RZ ---
     subplot(3,1,3);
-    plot(t, PolarRZ_Mean, 'b', 'LineWidth', 2); hold on;
+    plot(t_ms, PolarRZ_Mean, 'b', 'LineWidth', 2); hold on;
     yline(PolarRZ_Theoretical, '--k', 'LineWidth', 1.5);
-    xlabel('Time (s)');
+    xlabel('Time (ms)');
     ylabel('Amplitude');
     title('Mean of Polar RZ');
     grid on;
     ylim([-A, A]);
+    xlim([-length(t)-1, length(t)+1]);
     legend('Simulated', 'Theoretical');
 
-    % Super title for the whole figure
     sgtitle('Mean of Different Line Codes with Theoretical Values');
 end
 
@@ -348,7 +380,6 @@ end
 
 function [Unipolar_AutoCorr, PolarNRZ_AutoCorr, PolarRZ_AutoCorr] =...
     compute_stat_autocorr(Unipolar_Shifted, PolarNRZ_Shifted, PolarRZ_Shifted, max_lag)
-    %{
     % Compute Statistical Autocorrelation for given signals using calculate_mean
     % Inputs:
     %   Unipolar_Shifted - Shifted signal matrix for Unipolar NRZ
@@ -358,10 +389,6 @@ function [Unipolar_AutoCorr, PolarNRZ_AutoCorr, PolarRZ_AutoCorr] =...
     %   Unipolar_AutoCorr - Computed autocorrelation for Unipolar NRZ
     %   PolarNRZ_AutoCorr - Computed autocorrelation for Polar NRZ
     %   PolarRZ_AutoCorr - Computed autocorrelation for Polar RZ
-    %}
-
-    % Set x-axis limits dynamically
-    x_limit = max_lag / 10;
 
     % Initialize autocorrelation arrays
     Unipolar_AutoCorr = zeros(1, max_lag + 1);
@@ -374,9 +401,6 @@ function [Unipolar_AutoCorr, PolarNRZ_AutoCorr, PolarRZ_AutoCorr] =...
         PolarNRZ_AutoCorr(i+1) = calculate_mean(PolarNRZ_Shifted(:, 1) .* PolarNRZ_Shifted(:, i+1));
         PolarRZ_AutoCorr(i+1) = calculate_mean(PolarRZ_Shifted(:, 1) .* PolarRZ_Shifted(:, i+1));
     end
-
-    % Time axis for plotting
-    t = -max_lag:max_lag;
 
     % Compute symmetric autocorrelation values
     Unipolar_AutoCorr = [fliplr(Unipolar_AutoCorr), Unipolar_AutoCorr(2:end)];
@@ -402,11 +426,10 @@ function plot_autocorrelation(Unipolar_AutoCorr, PolarNRZ_AutoCorr, PolarRZ_Auto
 
     % Unipolar NRZ
     Rx_Unipolar = (tau < Tb) .* ((A^2 / 2) .* (1 - ( tau / (2*Tb)))) + ...
-                  (tau >= Tb) .* (A^2 / 4);
-
+                 (tau >= Tb) .* (A^2 / 4);
     % Polar NRZ
     Rx_PolarNRZ = (tau < Tb) .* (A^2 .* (1 - (tau / Tb)));
-
+    
     % Polar RZ
     Rx_PolarRZ = (tau < Tb/2) .* ((4/7) * A^2 .* (1 - (8 * tau ./ (7 * Tb))));
 
@@ -418,7 +441,7 @@ function plot_autocorrelation(Unipolar_AutoCorr, PolarNRZ_AutoCorr, PolarRZ_Auto
     plot(t, Unipolar_AutoCorr, 'g', 'LineWidth', 1.5); hold on;
     plot(t, Rx_Unipolar, '--k', 'LineWidth', 2);
     legend('Statistical', 'Theoretical');
-    xlim([-x_limit, x_limit]);
+    xlim([-701, 701]);
     ylim([0, inf]);
     xlabel("Lag (\tau)");
     ylabel("Autocorr");
@@ -429,7 +452,7 @@ function plot_autocorrelation(Unipolar_AutoCorr, PolarNRZ_AutoCorr, PolarRZ_Auto
     plot(t, PolarNRZ_AutoCorr, 'b', 'LineWidth', 1.5); hold on;
     plot(t, Rx_PolarNRZ, '--k', 'LineWidth', 2);
     legend('Statistical', 'Theoretical');
-    xlim([-x_limit, x_limit]);
+    xlim([-701, 701]);
     ylim([0, inf]);
     xlabel("Lag (\tau)");
     ylabel("Autocorr");
@@ -440,7 +463,7 @@ function plot_autocorrelation(Unipolar_AutoCorr, PolarNRZ_AutoCorr, PolarRZ_Auto
     plot(t, PolarRZ_AutoCorr, 'r', 'LineWidth', 1.5); hold on;
     plot(t, Rx_PolarRZ, '--k', 'LineWidth', 2);
     legend('Statistical', 'Theoretical');
-    xlim([-x_limit, x_limit]);
+    xlim([-701, 701]);
     ylim([0, inf]);
     xlabel("Lag (\tau)");
     ylabel("Autocorr");
@@ -493,140 +516,490 @@ function plot_realizations_with_mean(t_shifted, Signals_TimeMean, signals_wavefo
 end
 
 function plot_time_mean_vs_realization(unipolar_mean, polarNRZ_mean, polarRZ_mean, A)
-    % Function to plot the time mean vs realization index for different signals separately
+    % Function to plot the time mean vs realization index (symmetric around 0)
     %
     % Inputs:
-    % - unipolar_mean: Time mean of Unipolar NRZ (1xN vector)
-    % - polarNRZ_mean: Time mean of Polar NRZ (1xN vector)
-    % - polarRZ_mean: Time mean of Polar RZ (1xN vector)
+    % - unipolar_mean: Time mean of Unipolar NRZ (1xN or Nx1 vector)
+    % - polarNRZ_mean: Time mean of Polar NRZ (1xN or Nx1 vector)
+    % - polarRZ_mean: Time mean of Polar RZ (1xN or Nx1 vector)
     % - A: Amplitude limit for y-axis
-    
-    % Define the x-axis (Index based on row size)
-    num_realizations = length(unipolar_mean);
-    realization_indices = 1:num_realizations;
 
-    % Create a figure for subplots
+    % Ensure row vectors
+    unipolar_mean = unipolar_mean(:).';
+    polarNRZ_mean = polarNRZ_mean(:).';
+    polarRZ_mean = polarRZ_mean(:).';
+
+    N = length(unipolar_mean);
+    realization_indices = -N+1:N-1;  % match mirrored length = 2N - 1
+
+    % Mirror signals (excluding duplicated center)
+    unipolar_mirrored = [fliplr(unipolar_mean(2:end)), unipolar_mean];
+    polarNRZ_mirrored = [fliplr(polarNRZ_mean(2:end)), polarNRZ_mean];
+    polarRZ_mirrored = [fliplr(polarRZ_mean(2:end)), polarRZ_mean];
+
     figure;
 
-    % Subplot 1: Unipolar NRZ
     subplot(3,1,1);
-    plot(realization_indices, unipolar_mean, 'r', 'LineWidth', 2);
+    plot(realization_indices, unipolar_mirrored, 'r', 'LineWidth', 2);
     grid on;
     xlabel('Realization Index');
     ylabel('Time Mean');
     title('Unipolar NRZ Time Mean');
-    ylim([-A, A]); % Set y-axis limits
+    ylim([-A, A]);
 
-    % Subplot 2: Polar NRZ
     subplot(3,1,2);
-    plot(realization_indices, polarNRZ_mean, 'g', 'LineWidth', 2);
+    plot(realization_indices, polarNRZ_mirrored, 'g', 'LineWidth', 2);
     grid on;
     xlabel('Realization Index');
     ylabel('Time Mean');
     title('Polar NRZ Time Mean');
     ylim([-A, A]);
 
-    % Subplot 3: Polar RZ
     subplot(3,1,3);
-    plot(realization_indices, polarRZ_mean, 'b', 'LineWidth', 2);
+    plot(realization_indices, polarRZ_mirrored, 'b', 'LineWidth', 2);
     grid on;
     xlabel('Realization Index');
     ylabel('Time Mean');
     title('Polar RZ Time Mean');
     ylim([-A, A]);
 
-    % Add a super title for the whole figure
     sgtitle('Time Mean vs Realization Index');
 end
 
-function [R_unipolar_nrz_t, R_polar_nrz_t, R_polar_rz_t, taw2] = ...
-    compute_time_autocorr(UnipolarNRZ, PolarNRZ, PolarRZ)
-    % Computes time autocorrelation for each realization separately.
+function [R_unipolar_t1, R_polar_nrz_t1, R_polar_rz_t1, tau_vec] = ...
+    compute_time_autocorr(UnipolarNRZ, PolarNRZ, PolarRZ, t1)
+    
+    % Computes time autocorrelation R(t1, tau) at a fixed t1 for tau = 0:700
     %
     % Inputs:
-    %   UnipolarNRZ - Matrix containing all realizations for Unipolar NRZ
-    %   PolarNRZ - Matrix containing all realizations for Polar NRZ
-    %   PolarRZ - Matrix containing all realizations for Polar RZ
+    %   UnipolarNRZ, PolarNRZ, PolarRZ - Realizations (each row is a signal)
+    %   t1 - Time index to fix (must be positive and < num_samples)
     %
     % Outputs:
-    %   R_unipolar_nrz_t - Time autocorrelation for Unipolar NRZ (each row computed separately)
-    %   R_polar_nrz_t - Time autocorrelation for Polar NRZ (each row computed separately)
-    %   R_polar_rz_t - Time autocorrelation for Polar RZ (each row computed separately)
-
-    % Get number of realizations and samples
+    %   R_unipolar_t1, R_polar_nrz_t1, R_polar_rz_t1 - Autocorrelation vectors
+    %   tau_vec - Vector of lags (tau)
+    
     [num_realizations, num_samples] = size(UnipolarNRZ);
+    max_tau = 690;
+    tau_vec = 0:max_tau;
 
-    % Define range of time lags
-    max_lag = num_samples - 1; % Maximum lag value
-    taw2 = -max_lag:max_lag; % Lag vector
 
-    % Initialize autocorrelation matrices (each row for a realization)
-    R_unipolar_nrz_t = zeros(num_realizations, length(taw2));
-    R_polar_nrz_t = zeros(num_realizations, length(taw2));
-    R_polar_rz_t = zeros(num_realizations, length(taw2));
+    % Preallocate
+    R_unipolar_t1 = zeros(1, length(tau_vec));
+    R_polar_nrz_t1 = zeros(1, length(tau_vec));
+    R_polar_rz_t1 = zeros(1, length(tau_vec));
 
-    % Compute autocorrelation for each realization separately
-    for r = 1:num_realizations
-        for i = taw2
-            M = i + max_lag + 1; % Shift index to fit within array bounds
+    for idx = 1:length(tau_vec)
+        tau = tau_vec(idx);
+        t2 = t1 + tau;
 
-            % Compute sum for each lag (dot product of signal with shifted version)
-            if i >= 0
-                valid_samples = num_samples - i;
-                R_unipolar_nrz_t(r, M) = sum(UnipolarNRZ(r, 1:valid_samples) .* UnipolarNRZ(r, i+1:num_samples)) / valid_samples;
-                R_polar_nrz_t(r, M) = sum(PolarNRZ(r, 1:valid_samples) .* PolarNRZ(r, i+1:num_samples)) / valid_samples;
-                R_polar_rz_t(r, M) = sum(PolarRZ(r, 1:valid_samples) .* PolarRZ(r, i+1:num_samples)) / valid_samples;
-            else
-                valid_samples = num_samples + i;
-                R_unipolar_nrz_t(r, M) = sum(UnipolarNRZ(r, -i+1:num_samples) .* UnipolarNRZ(r, 1:valid_samples)) / valid_samples;
-                R_polar_nrz_t(r, M) = sum(PolarNRZ(r, -i+1:num_samples) .* PolarNRZ(r, 1:valid_samples)) / valid_samples;
-                R_polar_rz_t(r, M) = sum(PolarRZ(r, -i+1:num_samples) .* PolarRZ(r, 1:valid_samples)) / valid_samples;
-            end
-        end
+
+        % Compute element-wise products for all realizations at t1 and t1+tau
+        prod_unipolar = UnipolarNRZ(:, t1) .* UnipolarNRZ(:, t2);
+        prod_polar    = PolarNRZ(:, t1)    .* PolarNRZ(:, t2);
+        prod_rz       = PolarRZ(:, t1)     .* PolarRZ(:, t2);
+
+        % Use custom function to compute mean across realizations
+        R_unipolar_t1(idx) = sum(prod_unipolar) / num_realizations;
+        R_polar_nrz_t1(idx)    = sum(prod_polar)    / num_realizations;
+        R_polar_rz_t1(idx)     = sum(prod_rz)       / num_realizations;
+
     end
 end
 
-function plot_time_autocorrelation(R_unipolar, R_polarNRZ, R_polarRZ, taw, max_lag)
-    % Plots the time autocorrelation of the first realization for each waveform type.
+function plot_time_autocorrelation(R_unipolar, R_polarNRZ, R_polarRZ, tau_vec, max_lag, Tb, A)
+    % Plots experimental and theoretical time autocorrelation for each waveform type.
     %
     % Inputs:
-    %   R_unipolar - Matrix containing time autocorrelation for Unipolar NRZ (each row is a realization)
-    %   R_polarNRZ - Matrix containing time autocorrelation for Polar NRZ (each row is a realization)
-    %   R_polarRZ - Matrix containing time autocorrelation for Polar RZ (each row is a realization)
-    %   taw - Vector of lag values
-    %   max_lag - Maximum lag value to set axis limits dynamically
+    %   R_unipolar, R_polarNRZ, R_polarRZ - matrices of time autocorrelation (each row = realization)
+    %   tau_vec - Vector of lags (non-negative only)
+    %   max_lag - Maximum lag value (samples) to define axis limits
+    %   Tb - Bit duration
+    %   A - Amplitude
 
-    % Set dynamic x-axis limits based on max_lag
     x_limit = max_lag / 10;
+
+    % Full tau range including negative lags
+    tau_full = [-flip(tau_vec(2:end)), tau_vec];  % symmetric lags (excluding 0 twice)
     
+    % Flip the autocorrelation to complete the negative half
+    R_unipolar_full = [fliplr(R_unipolar(1,2:end)), R_unipolar(1,:)];
+    R_polarNRZ_full = [fliplr(R_polarNRZ(1,2:end)), R_polarNRZ(1,:)];
+    R_polarRZ_full  = [fliplr(R_polarRZ(1,2:end)),  R_polarRZ(1,:)];
+
+    % Theoretical expressions
+    tau_sec = tau_full * (Tb / 7);  % Convert to seconds assuming 10 samples per Tb
+
+    % -------- Theoretical Expressions -------- %
+
+    Rx_Unipolar = (abs(tau_sec) < Tb) .* ((A^2 / 2) .* (1 - (abs(tau_sec) / (2*Tb)))) + ...
+                  (abs(tau_sec) >= Tb) .* (A^2 / 4);
+
+    Rx_PolarNRZ = (abs(tau_sec) < Tb) .* (A^2 .* (1 - abs(tau_sec) / Tb));
+
+    Rx_PolarRZ = (abs(tau_sec) < Tb/2) .* ((4/7) * A^2 .* (1 - (8 * abs(tau_sec) ./ (7 * Tb))));
+
+    % Plotting
     figure('Name', 'Time Autocorrelation');
 
-    % Plot Unipolar NRZ
+    % Unipolar NRZ
     subplot(3,1,1);
-    plot(taw, R_unipolar(1, :), 'b', 'LineWidth', 1.5);
-    grid on;
-    xlim([-x_limit x_limit]); % Adjust only the x-axis dynamically
-    xlabel('Time Lag (samples)');
-    ylabel('Magnitude');
-    title('Time Autocorrelation of Unipolar NRZ');
+    plot(tau_full, R_unipolar_full, 'b', 'LineWidth', 1.5); hold on;
+    plot(tau_full, Rx_Unipolar, '--k', 'LineWidth', 1.2);
+    xlim([-501, 501]);
+    grid on; 
+    xlabel('Time Lag (samples)'); ylabel('Magnitude');
+    title('Unipolar NRZ Autocorrelation'); legend('Experimental', 'Theoretical');
 
-    % Plot Polar NRZ
+    % Polar NRZ
     subplot(3,1,2);
-    plot(taw, R_polarNRZ(1, :), 'r', 'LineWidth', 1.5);
-    grid on;
-    xlim([-x_limit x_limit]); % Adjust only the x-axis dynamically
-    xlabel('Time Lag (samples)');
-    ylabel('Magnitude');
-    title('Time Autocorrelation of Polar NRZ');
+    plot(tau_full, R_polarNRZ_full, 'r', 'LineWidth', 1.5); hold on;
+    plot(tau_full, Rx_PolarNRZ, '--k', 'LineWidth', 1.2);
+    xlim([-501, 501]);
+    grid on; 
+    xlabel('Time Lag (samples)'); ylabel('Magnitude');
+    title('Polar NRZ Autocorrelation'); legend('Experimental', 'Theoretical');
 
-    % Plot Polar RZ
+    % Polar RZ
     subplot(3,1,3);
-    plot(taw, R_polarRZ(1, :), 'g', 'LineWidth', 1.5);
+    plot(tau_full, R_polarRZ_full, 'g', 'LineWidth', 1.5); hold on;
+    plot(tau_full, Rx_PolarRZ, '--k', 'LineWidth', 1.2);
+    xlim([-501, 501]);
     grid on;
-    xlim([-x_limit x_limit]); % Adjust only the x-axis dynamically
+    xlabel('Time Lag (samples)'); ylabel('Magnitude');
+    title('Polar RZ Autocorrelation'); legend('Experimental', 'Theoretical');
+end
+
+function plot_mean_time_vs_statistical(t, ...
+                                       Unipolar_Mean, PolarNRZ_Mean, PolarRZ_Mean, ...
+                                       Unipolar_Theoretical, PolarNRZ_Theoretical, PolarRZ_Theoretical, ...
+                                       Unipolar_TimeMean, PolarNRZ_TimeMean, PolarRZ_TimeMean, A)
+% Plot statistical (time mean vs realization) and mean waveform vs time side by side
+%
+% Inputs:
+%   t                      - Time vector
+%   *_Mean                 - Simulated mean waveforms
+%   *_Theoretical          - Theoretical mean values
+%   *_TimeMean             - Time mean for each realization
+%   A                      - Amplitude limit for Y-axis
+
+    % Ensure row vectors
+    Unipolar_TimeMean = Unipolar_TimeMean(:).';
+    PolarNRZ_TimeMean = PolarNRZ_TimeMean(:).';
+    PolarRZ_TimeMean = PolarRZ_TimeMean(:).';
+
+    % Time axis for waveform mean (same as in original)
+    t_ms = linspace(-700, 700, length(t));
+
+    % Realization indices (symmetric for mirroring)
+    N = length(Unipolar_TimeMean);
+    realization_indices = -N+1:N-1;
+
+    % Mirror time mean data (excluding duplicated center)
+    unipolar_mirrored = [fliplr(Unipolar_TimeMean(2:end)), Unipolar_TimeMean];
+    polarNRZ_mirrored = [fliplr(PolarNRZ_TimeMean(2:end)), PolarNRZ_TimeMean];
+    polarRZ_mirrored = [fliplr(PolarRZ_TimeMean(2:end)), PolarRZ_TimeMean];
+
+    figure;
+
+    % Unipolar
+    subplot(3,2,1);  % Row 1, Col 1
+    plot(realization_indices, unipolar_mirrored, 'r', 'LineWidth', 2);
+    xlabel('Realization Index'); ylabel('Time Mean');
+    title('Unipolar NRZ Time Mean');
+    ylim([-A, A]); grid on;
+
+    subplot(3,2,2);  % Row 1, Col 2
+    plot(t_ms, Unipolar_Mean, 'r', 'LineWidth', 2); hold on;
+    yline(Unipolar_Theoretical, '--k', 'LineWidth', 1.5);
+    xlabel('Time (ms)'); ylabel('Amplitude');
+    title('Unipolar NRZ Mean Waveform');
+    legend('Simulated', 'Theoretical'); grid on;
+    ylim([-A, A]); xlim([min(t_ms), max(t_ms)]);
+
+    % Polar NRZ
+    subplot(3,2,3);
+    plot(realization_indices, polarNRZ_mirrored, 'g', 'LineWidth', 2);
+    xlabel('Realization Index'); ylabel('Time Mean');
+    title('Polar NRZ Time Mean');
+    ylim([-A, A]); grid on;
+
+    subplot(3,2,4);
+    plot(t_ms, PolarNRZ_Mean, 'g', 'LineWidth', 2); hold on;
+    yline(PolarNRZ_Theoretical, '--k', 'LineWidth', 1.5);
+    xlabel('Time (ms)'); ylabel('Amplitude');
+    title('Polar NRZ Mean Waveform');
+    legend('Simulated', 'Theoretical'); grid on;
+    ylim([-A, A]); xlim([min(t_ms), max(t_ms)]);
+
+    % Polar RZ
+    subplot(3,2,5);
+    plot(realization_indices, polarRZ_mirrored, 'b', 'LineWidth', 2);
+    xlabel('Realization Index'); ylabel('Time Mean');
+    title('Polar RZ Time Mean');
+    ylim([-A, A]); grid on;
+
+    subplot(3,2,6);
+    plot(t_ms, PolarRZ_Mean, 'b', 'LineWidth', 2); hold on;
+    yline(PolarRZ_Theoretical, '--k', 'LineWidth', 1.5);
+    xlabel('Time (ms)'); ylabel('Amplitude');
+    title('Polar RZ Mean Waveform');
+    legend('Simulated', 'Theoretical'); grid on;
+    ylim([-A, A]); xlim([min(t_ms), max(t_ms)]);
+
+    sgtitle('Statistical vs Mean Waveform (Unipolar, Polar NRZ, Polar RZ)');
+end
+
+
+function [R_avg] = plot_two_realizations(R_linecode1, R_linecode2, tau_vec, max_lag)
+    % Plots the time autocorrelation for two realizations of a single line code,
+    % and their average.
+    %
+    % Inputs:
+    %   R_linecode1, R_linecode2 - Vectors of time autocorrelation (one per realization)
+    %   tau_vec - Vector of lags (non-negative only)
+    %   max_lag - Maximum lag value (samples) to define axis limits
+
+    x_limit = max_lag / 10;
+
+    % Ensure inputs are row vectors
+    R_linecode1 = R_linecode1(:).';  % force to row vector
+    R_linecode2 = R_linecode2(:).';
+
+    % Full tau range including negative lags
+    tau_full = [-flip(tau_vec(2:end)), tau_vec];  % symmetric lags
+
+    % Construct full autocorrelation by mirroring
+    R_linecode1_full = [fliplr(R_linecode1(2:end)), R_linecode1];
+    R_linecode2_full = [fliplr(R_linecode2(2:end)), R_linecode2];
+
+    % Compute average autocorrelation
+    R_avg = 0.5 * (R_linecode1_full + R_linecode2_full);
+
+    % Plotting
+    figure('Name', 'Time Autocorrelation for Two Realizations + Average');
+
+    % --- First subplot: the two realizations
+    subplot(2,1,1);
+    plot(tau_full, R_linecode1_full, 'b', 'LineWidth', 1.5); hold on;
+    plot(tau_full, R_linecode2_full, 'r--', 'LineWidth', 1.5);
+    grid on;
+    xlim([-x_limit x_limit]);
     xlabel('Time Lag (samples)');
     ylabel('Magnitude');
-    title('Time Autocorrelation of Polar RZ');
+    title('Time Autocorrelation of Line Code - Two Realizations');
+    legend('Realization 1 (t1)', 'Realization 2 (t2)');
+
+    % --- Second subplot: average autocorrelation
+    subplot(2,1,2);
+    plot(tau_full, R_avg, 'k', 'LineWidth', 2);
+    grid on;
+    xlim([-x_limit x_limit]);
+    xlabel('Time Lag (samples)');
+    ylabel('Magnitude');
+    title('Average Time Autocorrelation');
+    legend('Average of t1 and t2');
+end
+
+function [R_avg_unipolar, R_avg_polar_nrz, R_avg_polar_rz, tau_full] = ...
+    get_Ravg(Unipolar_Shifted, PolarNRZ_Shifted, PolarRZ_Shifted, t1, t2)
+% Computes the average time autocorrelation (R_avg) of each line code over two time instances
+%
+% Inputs:
+%   Unipolar_Shifted, PolarNRZ_Shifted, PolarRZ_Shifted : matrices with realizations over time
+%   t1, t2       : time indices to extract 2 realizations
+%
+% Outputs:
+%   R_avg_unipolar, R_avg_polar_nrz, R_avg_polar_rz : averaged autocorrelations
+%   tau_full     : vector of symmetric lag values
+
+    % Compute autocorrelation for two time slices
+    [R1_unipolar, R1_polar_nrz, R1_polar_rz, tau_vec] = ...
+        compute_time_autocorr(Unipolar_Shifted, PolarNRZ_Shifted, PolarRZ_Shifted, t1);
+
+    [R2_unipolar, R2_polar_nrz, R2_polar_rz, ~] = ...
+        compute_time_autocorr(Unipolar_Shifted, PolarNRZ_Shifted, PolarRZ_Shifted, t2);
+
+    % Symmetric tau range (include negative lags)
+    tau_full = [-flip(tau_vec(2:end)), tau_vec];
+
+    % Symmetric autocorrelations
+    R1_unipolar_full = [fliplr(R1_unipolar(2:end)), R1_unipolar];
+    R2_unipolar_full = [fliplr(R2_unipolar(2:end)), R2_unipolar];
+
+    R1_polar_nrz_full = [fliplr(R1_polar_nrz(2:end)), R1_polar_nrz];
+    R2_polar_nrz_full = [fliplr(R2_polar_nrz(2:end)), R2_polar_nrz];
+
+    R1_polar_rz_full = [fliplr(R1_polar_rz(2:end)), R1_polar_rz];
+    R2_polar_rz_full = [fliplr(R2_polar_rz(2:end)), R2_polar_rz];
+
+    % Average of the two realizations
+    R_avg_unipolar = 0.5 * (R1_unipolar_full + R2_unipolar_full);
+    R_avg_polar_nrz = 0.5 * (R1_polar_nrz_full + R2_polar_nrz_full);
+    R_avg_polar_rz = 0.5 * (R1_polar_rz_full + R2_polar_rz_full);
+end
+
+
+function plot_combined_autocorrelation(R_unipolar, R_polarNRZ, R_polarRZ, ...
+                                       tau_vec, max_lag, Tb, A, ...
+                                       Unipolar_AutoCorr, PolarNRZ_AutoCorr, PolarRZ_AutoCorr)
+    % Combined plot of time-domain and statistical autocorrelations
+    %
+    % Inputs:
+    %   R_unipolar, R_polarNRZ, R_polarRZ - Time autocorrelation matrices (1 realization)
+    %   tau_vec - Non-negative tau vector
+    %   max_lag - Max lag for axis limits
+    %   Tb - Bit duration
+    %   A - Amplitude
+    %   *_AutoCorr - Statistical autocorrelation vectors
+    
+    x_limit = max_lag / 10;
+
+    % Full symmetric tau vector
+    tau_full = [-flip(tau_vec(2:end)), tau_vec];
+    tau_sec  = tau_full * (Tb / 7);  % seconds
+
+    % Reconstruct full symmetric time-domain autocorrelation
+    R_unipolar_full = [fliplr(R_unipolar(1,2:end)), R_unipolar(1,:)];
+    R_polarNRZ_full = [fliplr(R_polarNRZ(1,2:end)), R_polarNRZ(1,:)];
+    R_polarRZ_full  = [fliplr(R_polarRZ(1,2:end)),  R_polarRZ(1,:)];
+
+    % Theoretical autocorrelation
+    Rx_Unipolar = (abs(tau_sec) < Tb) .* ((A^2 / 2) .* (1 - (abs(tau_sec) / (2*Tb)))) + ...
+                  (abs(tau_sec) >= Tb) .* (A^2 / 4);
+    Rx_PolarNRZ = (abs(tau_sec) < Tb) .* (A^2 .* (1 - abs(tau_sec) / Tb));
+    Rx_PolarRZ  = (abs(tau_sec) < Tb/2) .* ((4/7) * A^2 .* (1 - (8 * abs(tau_sec) ./ (7 * Tb))));
+
+    % Statistical lag axis
+    t = -max_lag:max_lag;
+    tau = abs(t);
+
+    % Theoretical for statistical view
+    Rx_Unipolar_stat = (tau < Tb) .* ((A^2 / 2) .* (1 - ( tau / (2*Tb)))) + ...
+                       (tau >= Tb) .* (A^2 / 4);
+    Rx_PolarNRZ_stat = (tau < Tb) .* (A^2 .* (1 - (tau / Tb)));
+    Rx_PolarRZ_stat  = (tau < Tb/2) .* ((4/7) * A^2 .* (1 - (8 * tau ./ (7 * Tb))));
+
+    figure('Name', 'Autocorrelation: Time-Domain & Statistical');
+
+       % ---- Comparison: Time vs Statistical Autocorrelation ----
+    figure('Name', 'Comparison: Time vs Statistical Autocorrelations');
+
+    % Unipolar NRZ
+    subplot(3, 1, 1);
+    plot(tau_full, R_unipolar_full, 'b', 'LineWidth', 1.5); hold on;
+    plot(t, Unipolar_AutoCorr, '--r', 'LineWidth', 1.5);
+    xlim([-x_limit, x_limit]);
+    title('Unipolar NRZ: Time vs Statistical');
+    xlabel('Lag'); ylabel('Autocorrelation');
+    legend('Time-domain', 'Statistical'); grid on;
+
+    % Match the overlapping segment
+    min_len = min(length(R_unipolar_full), length(Unipolar_AutoCorr));
+    R_trimmed = R_unipolar_full(1:min_len);
+    AutoCorr_trimmed = Unipolar_AutoCorr(1:min_len);
+
+    % Now compare
+    disp("The Statical and Time differnece is");
+    disp(norm(R_trimmed - AutoCorr_trimmed));
+
+    
+    % Polar NRZ
+    subplot(3, 1, 2);
+    plot(tau_full, R_polarNRZ_full, 'b', 'LineWidth', 1.5); hold on;
+    plot(t, PolarNRZ_AutoCorr, '--r', 'LineWidth', 1.5);
+    xlim([-x_limit, x_limit]);
+    title('Polar NRZ: Time vs Statistical');
+    xlabel('Lag'); ylabel('Autocorrelation');
+    legend('Time-domain', 'Statistical'); grid on;
+
+    % Polar RZ
+    subplot(3, 1, 3);
+    plot(tau_full, R_polarRZ_full, 'b', 'LineWidth', 1.5); hold on;
+    plot(t, PolarRZ_AutoCorr, '--r', 'LineWidth', 1.5);
+    xlim([-x_limit, x_limit]);
+    title('Polar RZ: Time vs Statistical');
+    xlabel('Lag'); ylabel('Autocorrelation');
+    legend('Time-domain', 'Statistical'); grid on;
+
+end
+
+function plot_linecode_psd(R_Unipolar, R_PolarNRZ, R_PolarRZ, fs)
+    % Function to plot PSDs for Unipolar NRZ, Polar NRZ, and Polar RZ line codes
+    % using FFT of average autocorrelation sequences.
+    %
+    % Inputs:
+    %   R_Unipolar   - Average autocorrelation of Unipolar NRZ
+    %   R_PolarNRZ   - Average autocorrelation of Polar NRZ
+    %   R_PolarRZ    - Average autocorrelation of Polar RZ
+    %   fs           - Sampling frequency in Hz
+
+    % Ensure all inputs are column vectors
+    R_Unipolar = R_Unipolar(:);
+    R_PolarNRZ = R_PolarNRZ(:);
+    R_PolarRZ = R_PolarRZ(:);
+
+    % Number of samples
+    n = length(R_Unipolar);
+    % Index of center (DC component after fftshift)
+    center_idx = ceil(n / 2);
+    
+    % Remove DC Pulse
+    mu_uni = mean(R_Unipolar(end-10:end));  % Use tail values
+    R_Unipolar = R_Unipolar - mu_uni;            % Remove DC
+
+    % Compute FFTs of autocorrelations
+    fft_unipolar = fft(R_Unipolar) / n;
+    fft_polarNRZ = fft(R_PolarNRZ) / n;
+    fft_polarRZ  = fft(R_PolarRZ) / n;
+
+    % Compute PSD magnitudes
+    PSD_unipolar = abs(fft_unipolar);
+    PSD_polarNRZ = abs(fft_polarNRZ);
+    PSD_polarRZ  = abs(fft_polarRZ);
+
+    % Frequency axis centered around 0
+    freq_axis = (-n/2 : n/2 - 1) * (fs / n);
+
+    % Center the FFTs for proper plotting
+    PSD_unipolar = fftshift(PSD_unipolar);
+    PSD_polarNRZ = fftshift(PSD_polarNRZ);
+    PSD_polarRZ  = fftshift(PSD_polarRZ);
+
+    % Plot PSDs
+    figure('Name', 'Power Spectral Density via Average Autocorrelation');
+
+    subplot(3,1,1);
+    plot(freq_axis, PSD_unipolar, 'b', 'LineWidth', 1.5);
+    hold on;
+    stem(0, mu_uni, 'k', 'LineWidth', 1.5);  % Add DC pulse
+    hold off;
+    grid on;
+    xlabel('Frequency (Hz)');
+    ylabel('Magnitude');
+    title('PSD of Unipolar NRZ');
+    xlim([-fs/2, fs/2]);
+    ylim([0, PSD_unipolar(center_idx)/2]);
+    legend('PSD (No DC)', 'DC Pulse (\mu^2)');
+
+
+    subplot(3,1,2);
+    plot(freq_axis, PSD_polarNRZ, 'r', 'LineWidth', 1.5);
+    grid on;
+    xlabel('Frequency (Hz)');
+    ylabel('Magnitude');
+    title('PSD of Polar NRZ');
+    xlim([-fs/2, fs/2]);
+    ylim([0 max(PSD_polarNRZ)*1.1]);
+
+    subplot(3,1,3);
+    plot(freq_axis, PSD_polarRZ, 'g', 'LineWidth', 1.5);
+    grid on;
+    xlabel('Frequency (Hz)');
+    ylabel('Magnitude');
+    title('PSD of Polar RZ');
+    xlim([-fs/2, fs/2]);
+    ylim([0 max(PSD_polarRZ)*1.1]);
 end
 
 function [BW_unipolar, BW_polarNRZ, BW_polarRZ] = ...
