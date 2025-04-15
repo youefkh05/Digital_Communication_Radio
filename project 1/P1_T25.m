@@ -878,9 +878,7 @@ function plot_combined_autocorrelation(R_unipolar, R_polarNRZ, R_polarRZ, ...
     Rx_PolarNRZ_stat = (tau < Tb) .* (A^2 .* (1 - (tau / Tb)));
     Rx_PolarRZ_stat  = (tau < Tb/2) .* ((4/7) * A^2 .* (1 - (8 * tau ./ (7 * Tb))));
 
-    figure('Name', 'Autocorrelation: Time-Domain & Statistical');
-
-       % ---- Comparison: Time vs Statistical Autocorrelation ----
+    % ---- Comparison: Time vs Statistical Autocorrelation ----
     figure('Name', 'Comparison: Time vs Statistical Autocorrelations');
 
     % Unipolar NRZ
@@ -991,7 +989,7 @@ function [PSD_unipolar ,PSD_polarNRZ ,PSD_polarRZ] =...
     ylabel('Magnitude');
     title('PSD of Unipolar NRZ');
     xlim([-fs/2, fs/2]);
-    ylim([0, max(PSD_unipolar)*1.1]);
+    ylim([0, max(PSD_unipolar)*1.2]);
     legend('Empirical', 'Theoretical');
     
     % Plot Polar NRZ
@@ -1005,7 +1003,7 @@ function [PSD_unipolar ,PSD_polarNRZ ,PSD_polarRZ] =...
     ylabel('Magnitude');
     title('PSD of Polar NRZ');
     xlim([-fs/2, fs/2]);
-    ylim([0, max(PSD_polarNRZ)*1.1]);
+    ylim([0, max(PSD_polarNRZ)*1.3]);
     legend('Empirical', 'Theoretical');
     
     % Plot Polar RZ
@@ -1019,7 +1017,7 @@ function [PSD_unipolar ,PSD_polarNRZ ,PSD_polarRZ] =...
     ylabel('Magnitude');
     title('PSD of Polar RZ');
     xlim([-fs/2, fs/2]);
-    ylim([0, max(PSD_polarRZ)*1.1]);
+    ylim([0, max(PSD_polarRZ)*1.3]);
     legend('Empirical', 'Theoretical');
 end
 
