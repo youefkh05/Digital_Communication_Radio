@@ -63,10 +63,9 @@ y_corr = correlate_RX(y_tx, p, samples_per_bit);
 % plot the Tx input vs All Rx output
 plot_all_outputs_vs_input(Ts, bit_stream_symbols, y_filtered_sampled, y_corr_sampled, y_hold_sampled);
 
-
 %-----------------------Requiernment 2----------------------------
 
-bits_Num = 100;                % 10000 bits
+bits_Num = 100;                % 100 bits
 Samples_Num=samples_per_bit* bits_Num;
 
 % Generate random bits
@@ -108,7 +107,6 @@ y_corr = correlate_RX(y_tx_noise, p, samples_per_bit);
 % plot the Tx input vs All Rx output
 plot_all_outputs_vs_input(Ts, bit_stream_symbols, y_filtered_sampled, y_corr_sampled, y_hold_sampled);
 
-
 % Calculate the probability of error
 polar_threshold = 0;
 [BER, error_array] = calculate_error_probability(bit_stream_symbols, y_filtered_sampled, polar_threshold, A);
@@ -131,6 +129,60 @@ SNR_db  = -2:1:5;                % SNR given in dB from -2 dB to 5 dB in 1 dB st
 
 % plot them
 plot_BER_vs_EbN0(SNR_db, BER_matched, BER_hold, theoretical_BER);
+
+% ===========================================================
+% Project: ISI and Raised Cosine Filters - Eye Diagrams at A & B
+% ===========================================================
+
+% Parameters
+num_bits = 100;                
+samples_per_symbol = 8;       
+A = 1;
+
+% Generate random bits and map: 0 -> -A, 1 -> +A
+bits = randi([0 1], 1, num_bits);
+symbols = A * (2 * bits - 1);  
+
+% Upsample
+tx_upsampled = upsample(symbols, samples_per_symbol);
+
+% Configurations: [R, delay]
+rolloff_values = [0, 0, 1, 1];
+delay_values   = [2, 8, 2, 8];
+
+% Figure counter
+fig_num = 1;
+
+for i = 1:4
+    R = rolloff_values(i);
+    delay = delay_values(i);
+
+    % SRRC filter
+    srrc_filter = rcosdesign(R, 2*delay, samples_per_symbol, 'sqrt');
+
+    % Filtered signal at A
+    tx_filtered = filter(srrc_filter, 1, tx_upsampled);
+
+    % Matched filter (Rx)
+    rx_filtered = filter(srrc_filter, 1, tx_filtered);
+
+    % Remove filter transients
+    filter_delay = 2 * delay * samples_per_symbol;
+    valid_tx = tx_filtered(filter_delay+1:end);
+    valid_rx = rx_filtered(filter_delay+1:end);
+
+    % Plot eye diagram at A
+    figure(fig_num);
+    eyediagram(valid_tx, 2 * samples_per_symbol);
+    title(['Eye Diagram at Point A | R = ' num2str(R) ', Delay = ' num2str(delay)]);
+    fig_num = fig_num + 1;
+
+    % Plot eye diagram at B
+    figure(fig_num);
+    eyediagram(valid_rx, 2 * samples_per_symbol);
+    title(['Eye Diagram at Point B | R = ' num2str(R) ', Delay = ' num2str(delay)]);
+    fig_num = fig_num + 1;
+end
 
 %-----------------------Functions----------------------------
 
@@ -234,8 +286,6 @@ function y_tx = generate_pam_waveform(upsampled_bit_stream, p)
 
     % Trim the result to match the length of the impulse train (original upsampled length)
     y_tx = y_tx(1:length(upsampled_bit_stream));  % Match the length of the upsampled input
-    
- 
 end
 
 function plot_pam_waveform(Ts, y_tx, plot_title,smaple_per_bit)
@@ -288,8 +338,6 @@ function [sampled_values] = ...
     end
     
     % Plot the waveform using the time vector t
-
-    % Plot the matched filter output 
     h1 = plot(t, y_rx_z, 'Color', color, 'LineWidth', 2);   % Blue line for matched filter output
     title(plot_title);
     xlabel('Time [Ts sec]');  % Using time as x-axis
@@ -310,7 +358,6 @@ function [sampled_values] = ...
     % Initialize dot_time for every time step
     dot_time = t;  % Time points corresponding to all samples
     
-
     % Plot the hollow dots (red outline, no fill)
     plot(dot_time, dot_values, 'o', 'MarkerSize', 6, 'MarkerEdgeColor', 'r', 'MarkerFaceColor', 'r');
     
@@ -326,7 +373,6 @@ function [sampled_values] = ...
         % Add a hollow red dot at the top of the line
         plot(x, y, 'o', 'MarkerSize', 6, 'MarkerEdgeColor', 'r', 'MarkerFaceColor', 'w');
     end
-
     
     % Set the x-axis ticks and labels
     xticks(0:Ts:max(t));               % Set ticks at multiples of Ts
@@ -428,20 +474,18 @@ function [y_filtered_sampled ,y_corr_smapled] = ...
     subplot(2, 1, 2);  % Two rows, one column, second subplot
     y_corr = correlate_RX(y_tx, p, samples_per_bit);  % Get the correlated signal
     y_corr_smapled = plot_RX_waveform(Ts, y_corr, 1, samples_per_bit, bits_Num, "The correlator Output", 'b');
-
 end
 
 function [y_matched_smapled ,y_hold_sampled] = ...
     plot_matched_vs_hold(Ts, y_matched, y_hold, ...
     samples_per_bit, bits_Num)
-    % PLOT_MATCHED_AND_CORRELATOR Create a figure with two subplots: 
-    % one for the matched filter output and one for the correlator output.
+    % PLOT_MATCHED_AND_HOLD Create a figure with two subplots: 
+    % one for the matched filter output and one for the hold filter output.
     %
     % Inputs:
     %   Ts            - Symbol duration (in seconds)
-    %   y_hold    - Filtered receiver output signal
-    %   y_tx          - Transmitted signal
-    %   p             - Matched filter pulse
+    %   y_matched     - Matched filter output signal
+    %   y_hold        - Hold filter output signal
     %   samples_per_bit - Number of samples per bit
     %   bits_Num      - Total number of bits in the signal
 
@@ -453,11 +497,10 @@ function [y_matched_smapled ,y_hold_sampled] = ...
     y_matched_smapled = plot_RX_waveform(Ts, y_matched, 1, samples_per_bit, bits_Num, "The receiver output due to matched filter", 'c');
     pause(3);
     
-    % Create the second subplot (Correlator Output)
+    % Create the second subplot (Hold Filter Output)
     subplot(2, 1, 2);  % Two rows, one column, second subplot
     y_hold_sampled = plot_RX_waveform(Ts, y_hold, 1, samples_per_bit, bits_Num, "The receiver output due to hold filter", 'm');
     pause(3);
-    
 end
 
 function hold_filter = make_hold_filter(Ts, N, A)
@@ -638,8 +681,6 @@ function [BER_matched, BER_hold, theoretical_BER] = ...
         % Calculate theoretical BER
         theoretical_BER(i) = 0.5 * erfc(sqrt(SNR_lin));  % Theoretical BER formula
     end
-    
-   
 end
 
 function plot_BER_vs_EbN0(Eb_N0_dB, BER_matched, BER_hold, theoretical_BER)
