@@ -129,12 +129,11 @@ SNR_db  = -2:1:5;                % SNR given in dB from -2 dB to 5 dB in 1 dB st
 
 % plot them
 plot_BER_vs_EbN0(SNR_db, BER_matched, BER_hold, theoretical_BER);
-
 % ===========================================================
 % Project: ISI and Raised Cosine Filters - Eye Diagrams at A & B
 % ===========================================================
 
-% Parameters
+% Parameters 
 num_bits = 100;                
 samples_per_symbol = 8;       
 A = 1;
@@ -151,7 +150,7 @@ rolloff_values = [0, 0, 1, 1];
 delay_values   = [2, 8, 2, 8];
 
 % Figure counter
-fig_num = 1;
+fig_num = 23;
 
 for i = 1:4
     R = rolloff_values(i);
@@ -159,6 +158,23 @@ for i = 1:4
 
     % SRRC filter
     srrc_filter = rcosdesign(R, 2*delay, samples_per_symbol, 'sqrt');
+
+    % Plot SRRC filter impulse response
+    figure(fig_num);
+    filter_length = length(srrc_filter); % Get the length of the filter
+    t = (-(filter_length-1)/(2*samples_per_symbol)):(1/samples_per_symbol):((filter_length-1)/(2*samples_per_symbol)); % Adjusted time vector
+    plot(t, srrc_filter, 'r-', 'LineWidth', 1.5); % Red line for consistency
+    set(gca, 'Color', 'white');  
+    set(gcf, 'Color', 'white');  
+    title(['SRRC Filter - R = ' num2str(R) ', Delay = ' num2str(delay)]);
+    set(get(gca, 'Title'), 'Color', 'black');
+    set(gca, 'XColor', 'black', 'YColor', 'black');
+    set(get(gca, 'XLabel'), 'Color', 'black');
+    set(get(gca, 'YLabel'), 'Color', 'black');
+    xlabel('Time (symbols)');
+    ylabel('Amplitude');
+    grid on;
+    fig_num = fig_num + 1;
 
     % Filtered signal at A
     tx_filtered = filter(srrc_filter, 1, tx_upsampled);
@@ -174,16 +190,35 @@ for i = 1:4
     % Plot eye diagram at A
     figure(fig_num);
     eyediagram(valid_tx, 2 * samples_per_symbol);
-    title(['Eye Diagram at Point A | R = ' num2str(R) ', Delay = ' num2str(delay)]);
+    set(gca, 'Color', 'white');  
+    set(gcf, 'Color', 'white');  
+    lines = findall(gca, 'Type', 'line');
+    set(lines, 'Color', 'red'); 
+    title(['Eye Diagram at Point A - R = ' num2str(R) ', Delay = ' num2str(delay)]);
+    set(get(gca, 'Title'), 'Color', 'black');
+    set(gca, 'XColor', 'black', 'YColor', 'black');
+    set(get(gca, 'XLabel'), 'Color', 'black');
+    set(get(gca, 'YLabel'), 'Color', 'black');
     fig_num = fig_num + 1;
 
     % Plot eye diagram at B
     figure(fig_num);
     eyediagram(valid_rx, 2 * samples_per_symbol);
-    title(['Eye Diagram at Point B | R = ' num2str(R) ', Delay = ' num2str(delay)]);
+    set(gca, 'Color', 'white');
+    set(gcf, 'Color', 'white');
+    lines = findall(gca, 'Type', 'line');
+    set(lines, 'Color', 'red');
+    title(['Eye Diagram at Point B - R = ' num2str(R) ', Delay = ' num2str(delay)]);
+    set(get(gca, 'Title'), 'Color', 'black');
+    set(gca, 'XColor', 'black', 'YColor', 'black');
+    set(get(gca, 'XLabel'), 'Color', 'black');
+    set(get(gca, 'YLabel'), 'Color', 'black');
     fig_num = fig_num + 1;
 end
+%% 
 
+
+%% 
 %-----------------------Functions----------------------------
 
 function [p,denorm_p] = triangle_pulse(N)
