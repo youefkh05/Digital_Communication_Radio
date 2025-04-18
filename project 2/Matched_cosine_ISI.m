@@ -502,11 +502,11 @@ function [y_filtered_sampled ,y_corr_smapled] = ...
     figure;
     
     % Create the first subplot (Matched Filter Output)
-    subplot(2, 1, 1);  % Two rows, one column, first subplot
+    
     y_filtered_sampled = plot_RX_waveform(Ts, y_filtered, 1, samples_per_bit, bits_Num, "The receiver output due to matched filter", 'g');
 
     % Create the second subplot (Correlator Output)
-    subplot(2, 1, 2);  % Two rows, one column, second subplot
+    hold on;
     y_corr = correlate_RX(y_tx, p, samples_per_bit);  % Get the correlated signal
     y_corr_smapled = plot_RX_waveform(Ts, y_corr, 1, samples_per_bit, bits_Num, "The correlator Output", 'b');
 end
