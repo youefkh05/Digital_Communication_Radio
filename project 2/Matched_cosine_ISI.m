@@ -714,7 +714,7 @@ function [BER_matched, BER_hold, theoretical_BER] = ...
         [BER_hold(i), ~] = calculate_error_probability(bit_stream_symbols, y_hold_sampled, polar_threshold, A);
         
         % Calculate theoretical BER
-        theoretical_BER(i) = 0.5 * erfc(sqrt(SNR_lin));  % Theoretical BER formula
+        theoretical_BER(i) = 0.5 * erfc(sqrt(SNR_lin/2));  % Theoretical BER formula
     end
 end
 
